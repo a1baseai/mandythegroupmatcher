@@ -2,6 +2,7 @@ const claudeService = require('../services/claude-service');
 const brandonEatsClient = require('../services/brandoneats-client');
 const brandonEatsAgent = require('../agents/brandoneats-agent');
 const fileRegistry = require('../services/file-registry');
+const socialLinkExtractor = require('../services/social-link-extractor');
 
 // Message deduplication - store recently processed message IDs
 const processedMessages = new Map();
@@ -203,6 +204,46 @@ async function brandonEatsWebhookHandler(req, res) {
       }
     } else {
       console.log('⚠️  Test mode: Skipping A1Zap send');
+    }
+
+    // Extract and send relevant social media links as a follow-up message
+    if (!chatId.startsWith('test-')) {
+      try {
+        console.log('🔍 Checking for relevant social media links...');
+        const relevantLinks = await socialLinkExtractor.extractRelevantSocialLinks(response);
+
+        if (relevantLinks && relevantLinks.length > 0) {
+          console.log(`📹 Found ${relevantLinks.length} relevant TikTok links, sending follow-up message...`);
+          
+          // Create rich content blocks for each link
+          const richContentBlocks = relevantLinks.map((link, index) => ({
+            type: 'social_share',
+            data: {
+              platform: 'tiktok',
+              url: link.url
+            },
+            order: index
+          }));
+
+          // Send follow-up message with social embeds
+          const socialMessage = relevantLinks.length === 1
+            ? `🎥 Here's a video about ${relevantLinks[0].name}!`
+            : `🎥 Here are some videos about these places!`;
+
+          await brandonEatsClient.sendMessage(
+            chatId,
+            socialMessage,
+            richContentBlocks
+          );
+
+          console.log('✅ Social media links sent successfully');
+        } else {
+          console.log('ℹ️  No relevant social media links found for this response');
+        }
+      } catch (socialError) {
+        console.error('❌ Error sending social media links:', socialError.message);
+        // Don't fail the main request if social links fail
+      }
     }
 
     // Return success
