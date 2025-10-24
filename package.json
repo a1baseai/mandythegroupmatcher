@@ -1,25 +1,32 @@
 {
-  "name": "gemini-webhook-agent",
-  "version": "1.0.0",
-  "description": "Multi-AI webhook agent template powered by Gemini & Claude - ready for Replit deployment",
+  "name": "ai-agent-file-context",
+  "version": "2.0.0",
+  "description": "AI agent system with file context support - Create intelligent agents that analyze documents and data using Claude and Gemini",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
     "check": "node check-config.js",
-    "upload": "node example-upload.js"
+    "upload": "node examples/upload.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/ai-agent-file-context.git"
   },
   "keywords": [
-    "gemini",
+    "ai-agent",
     "claude",
+    "gemini",
     "anthropic",
     "webhook",
-    "ai",
-    "chatbot",
-    "replit",
-    "files-api"
+    "file-analysis",
+    "data-analysis",
+    "document-ai",
+    "csv-analysis",
+    "a1zap",
+    "chatbot"
   ],
-  "author": "",
+  "author": "AI Agent Contributors",
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.67.0",

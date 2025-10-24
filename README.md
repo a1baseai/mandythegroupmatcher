@@ -1,31 +1,31 @@
-# A1Zap Agent API Example Template 🤖
+# AI Agent System with File Context 🤖📁
 
-Multi-AI webhook agent powered by **Google Gemini AI** and **Claude AI** - ready for Replit deployment.
-
-Create custom AI agents that run on A1Zap webhooks, with support for document-aware responses using Claude's Files API.
+Multi-model AI agent system with file-aware capabilities, powered by **Claude** and **Gemini**. Create intelligent agents that analyze documents, CSV data, and provide context-aware responses through A1Zap webhooks.
 
 ## 🚀 Quick Start
 
 ### 1. Get Your API Keys
 
-**Gemini API Key:**
-- Visit [Google AI Studio](https://aistudio.google.com/apikey)
-- Create and copy your API key
-
-**Claude API Key:**
+**Claude API Key** (Required):
 - Visit [Anthropic Console](https://console.anthropic.com/)
 - Create an account and get your API key
+- Required for file operations and document analysis
 
-**A1Zap Credentials:**
+**A1Zap Credentials** (Required):
 - Go to A1Zap app → Make → Agent API
 - Create your agent → Copy your API Key and Agent ID
 
-### 2. Deploy to Replit
+**Gemini API Key** (Optional):
+- Visit [Google AI Studio](https://aistudio.google.com/apikey)
+- Provides additional model flexibility
+
+### 2. Deploy
+
+#### Option A: Replit (Recommended)
 
 1. Import this project to Replit
 2. Add to Secrets (🔒 in sidebar):
 ```
-GEMINI_API_KEY=your_gemini_key
 CLAUDE_API_KEY=your_claude_key
 A1ZAP_API_KEY=your_a1zap_key
 A1ZAP_AGENT_ID=your_agent_id
@@ -33,58 +33,103 @@ BASE_URL=https://your-repl.repl.co
 ```
 3. Click **Run**
 
-### 3. Configure A1Zap Webhook
+#### Option B: Local Development
 
-In A1Zap app → Select your agent:
-- For Gemini agents: `https://your-repl.repl.co/webhook/text`
-- For Claude agents with file support: `https://your-repl.repl.co/webhook/claude`
+1. Clone the repository
+2. Install dependencies:
+```bash
+npm install
+```
 
-### 4. Test It
+3. Create `.env` file:
+```bash
+CLAUDE_API_KEY=your_claude_key
+A1ZAP_API_KEY=your_a1zap_key
+A1ZAP_AGENT_ID=your_agent_id
+BASE_URL=http://localhost:3000
+```
 
-Start chatting with your agent - your agent responds!
+4. Start the server:
+```bash
+npm start
+```
+
+### 3. Upload a File
+
+Upload a document for your agent to reference:
+
+```bash
+# Upload a file
+npm run upload /path/to/your/file.csv
+
+# Or use the sample
+npm run upload files/brandoneats.csv
+```
+
+### 4. Configure A1Zap Webhook
+
+In A1Zap app → Select your agent → Set webhook URL:
+- For generic file operations: `https://your-server.com/webhook/claude`
+- For Brandon Eats data: `https://your-server.com/webhook/brandoneats`
+
+### 5. Test It! 🎉
+
+Start chatting with your agent - it will use uploaded files as context!
 
 ---
 
-## 📄 Claude Files API - Document-Aware Agents
+## 🎭 Customize Agent Personality
 
-### Upload Files to Claude
+Edit the system prompt in your agent configuration file to change how your agent behaves:
 
-Use the standalone file upload utility to upload documents (PDF, TXT, CSV, etc.) to Claude:
+```javascript
+// agents/brandoneats-agent.js or agents/claude-docubot-agent.js
+module.exports = {
+  name: 'Your Agent Name',
+  
+  // 👇 EDIT THIS to customize personality, tone, and behavior
+  systemPrompt: `You are a helpful assistant...
+  
+  Your capabilities:
+  - Analyze data and provide insights
+  - Answer questions based on uploaded files
+  - Be friendly and professional
+  
+  Communication style:
+  - Clear and concise
+  - Use examples when helpful`,
+  
+  generationOptions: {
+    temperature: 0.7,  // 0.0 = factual, 1.0 = creative
+    maxTokens: 4096    // Response length
+  }
+};
+```
 
+**📖 See `AGENT_PERSONALITY_GUIDE.md` for detailed examples and instructions.**
+
+---
+
+## 📁 File Management
+
+### Upload Files
+
+```bash
+# Upload and set as base file (used for all responses)
+npm run upload /path/to/document.pdf
+```
+
+Or use the API:
 ```javascript
 const { uploadFileToClaude } = require('./services/file-upload');
 
-// Upload a file
-const result = await uploadFileToClaude('/path/to/document.pdf', {
-  setAsBase: true  // Set this file as the base file for all agent responses
+const result = await uploadFileToClaude('./document.pdf', {
+  setAsBase: true
 });
-
-console.log('File ID:', result.fileId);
 ```
 
-### Setting Up Document-Aware Agent
+### Check Files
 
-1. **Upload your base document:**
-```javascript
-const { uploadFileToClaude } = require('./services/file-upload');
-
-// This will upload and set as base file
-await uploadFileToClaude('./my-knowledge-base.pdf', { setAsBase: true });
-```
-
-2. **Configure A1Zap webhook:**
-- Use the Claude webhook: `https://your-repl.repl.co/webhook/claude`
-
-3. **Start chatting:**
-- All responses will reference the uploaded document
-- The agent will answer questions based on the document content
-
-### File Management Endpoints
-
-- `GET /files/base` - Get current base file information
-- `GET /files/list` - List all uploaded files
-
-Example:
 ```bash
 # Check current base file
 curl http://localhost:3000/files/base
@@ -94,7 +139,6 @@ curl http://localhost:3000/files/list
 ```
 
 ### Supported File Types
-
 - PDF (`.pdf`)
 - Text files (`.txt`)
 - CSV (`.csv`)
@@ -103,46 +147,227 @@ curl http://localhost:3000/files/list
 - HTML (`.html`)
 - XML (`.xml`)
 
-### Example Usage Script
+---
 
-Create a file `upload-doc.js`:
+## 🎯 Two Specialized Agents
+
+### 1. Generic File Agent (`/webhook/claude`)
+General-purpose document-aware agent:
+- Answer questions about uploaded documents
+- Analyze PDFs, text files, CSV data
+- Context-aware responses based on file content
+
+**Agent Config:** `agents/claude-docubot-agent.js`
+
+### 2. Brandon Eats Data Analyst (`/webhook/brandoneats`)
+Specialized for restaurant/food data:
+- CSV data parsing and analysis
+- Social media link extraction (Instagram, TikTok, YouTube)
+- Rich content responses with embedded media
+- Custom prompts for food industry queries
+
+**Agent Config:** `agents/brandoneats-agent.js`
+
+---
+
+## 🛠️ Project Structure
+
+```
+agents/
+  ├── claude-docubot-agent.js      # Generic file agent config
+  └── brandoneats-agent.js         # Brandon Eats agent config
+
+webhooks/
+  ├── claude-webhook.js            # Generic file handler
+  └── brandoneats-webhook.js       # Brandon Eats handler
+
+services/
+  ├── claude-service.js            # Claude API integration
+  ├── gemini-service.js            # Gemini API integration
+  ├── a1zap-client.js              # A1Zap messaging client
+  ├── brandoneats-client.js        # Brandon Eats specialized client
+  ├── file-upload.js               # File upload utility
+  ├── file-registry.js             # File storage manager
+  └── social-link-extractor.js     # Social media detection
+
+examples/                          # Example scripts
+  ├── upload.js                    # File upload example
+  └── social-shares.js             # Rich content example
+
+tests/                             # Test scripts
+  ├── test-social-links.js         # Social link extraction tests
+  ├── test-rich-content.js         # Rich content tests
+  └── test-social-shares-quick.js  # Quick social share test
+
+files/                             # Uploaded files directory
+config.js                          # Environment configuration
+server.js                          # Main Express server
+```
+
+---
+
+## 🔧 Configuration
+
+### Environment Variables
+
+```bash
+# Required
+CLAUDE_API_KEY=sk-ant-...           # Claude API key
+A1ZAP_API_KEY=your-key              # A1Zap API key
+A1ZAP_AGENT_ID=your-agent-id        # A1Zap agent ID
+
+# Optional
+GEMINI_API_KEY=your-key             # Google Gemini API key
+PORT=3000                           # Server port
+BASE_URL=http://localhost:3000      # Public URL
+```
+
+### Check Configuration
+
+```bash
+npm run check
+```
+
+Shows status of all API keys and configurations.
+
+---
+
+## 🎨 Rich Content Support
+
+The Brandon Eats agent supports rich content:
+
+### Social Media Embeds
+Send social media posts with automatic embedding:
+
 ```javascript
-const { uploadFileToClaude } = require('./services/file-upload');
-
-async function uploadDocument() {
-  try {
-    const result = await uploadFileToClaude('./my-document.pdf', {
-      setAsBase: true
-    });
-    
-    console.log('✅ Document uploaded successfully!');
-    console.log('File ID:', result.fileId);
-    console.log('Now your Claude agent will reference this document in all responses.');
-  } catch (error) {
-    console.error('Upload failed:', error.message);
+const richContentBlocks = [
+  {
+    type: 'social_share',
+    data: {
+      platform: 'instagram',
+      url: 'https://www.instagram.com/reel/...'
+    },
+    order: 0
+  },
+  {
+    type: 'social_share',
+    data: {
+      platform: 'tiktok',
+      url: 'https://www.tiktok.com/@user/video/...'
+    },
+    order: 1
   }
-}
+];
 
-uploadDocument();
+await brandonEatsClient.sendMessage(chatId, 'Check out these videos!', richContentBlocks);
 ```
 
-Run it:
-```bash
-node upload-doc.js
+**📖 See `RICH_CONTENT_GUIDE.md` for more rich content types.**
+
+---
+
+## 🚀 Advanced Features
+
+### Smart Social Link Extraction
+
+The Brandon Eats agent automatically detects restaurant names in responses and sends relevant TikTok videos as follow-up messages:
+
+```javascript
+// Automatically triggered when restaurant names are mentioned
+// No code needed - it just works!
 ```
 
-### Quick Commands
+### Conversation History
 
-Convenient npm scripts for common tasks:
+Both agents maintain conversation context:
+- Last 10 messages are retrieved automatically
+- User names are included for multi-user chats
+- History is passed to Claude for contextual responses
+
+### Message Deduplication
+
+Built-in duplicate message detection prevents double-processing:
+- 5-minute deduplication window
+- Automatic cleanup of old entries
+- Race condition protection
+
+---
+
+## 📝 API Endpoints
+
+### Webhooks
+- `POST /webhook/claude` - Generic file-aware agent
+- `POST /webhook/brandoneats` - Brandon Eats specialized agent
+
+### File Management
+- `GET /files/base` - Get current base file info
+- `GET /files/list` - List all uploaded files
+
+### Health Check
+- `GET /health` - Server health status
+
+---
+
+## 🎯 Use Cases
+
+### Generic File Agent
+- **Company Knowledge Base**: Upload employee handbooks
+- **Product Support**: Upload user manuals
+- **Research Assistant**: Upload research papers
+- **Legal Q&A**: Upload contracts and policies
+- **Course Materials**: Upload textbooks and study guides
+- **API Documentation**: Upload technical docs
+
+### Brandon Eats Agent
+- **Restaurant Discovery**: Find restaurants by cuisine/location
+- **Data Analysis**: Analyze ratings, prices, menu items
+- **Social Media Tracking**: Monitor restaurant social presence
+- **Menu Insights**: Answer questions about dishes
+- **Data Enrichment**: Add information to restaurant databases
+
+---
+
+## 🐛 Troubleshooting
+
+**Agent not responding?**
+- Check server logs for errors
+- Verify environment variables: `npm run check`
+- Test health endpoint: `https://your-server.com/health`
+
+**Claude errors?**
+- Verify API key at [Anthropic Console](https://console.anthropic.com/)
+- Ensure you have Files API access
+
+**File upload not working?**
+- Check file type is supported
+- Verify Claude API key is set
+- Check file size limits
+
+**Agent not using document context?**
+- Verify base file is set: `GET /files/base`
+- Ensure you uploaded with `setAsBase: true`
+- Check you're using the correct webhook endpoint
+
+---
+
+## 📚 Documentation
+
+- `AGENT_PERSONALITY_GUIDE.md` - Customize agent personality and behavior
+- `A1ZAP_SETUP_GUIDE.md` - Detailed A1Zap setup instructions
+- `RICH_CONTENT_GUIDE.md` - Rich content formatting and social embeds
+
+---
+
+## 🔗 Useful Commands
 
 ```bash
-# Check configuration status
+# Check configuration
 npm run check
 
-# Upload a file (provide path as argument)
-npm run upload /path/to/file.pdf
+# Upload a file
+npm run upload /path/to/file.csv
 
-# Start the server
+# Start server
 npm start
 
 # Development mode (auto-restart)
@@ -151,146 +376,25 @@ npm run dev
 
 ---
 
-## 🛠️ Create Your Own Agent
+## 📖 Learn More
 
-### Text Agent Example
-
-Edit `agents/poker-coach.js`:
-
-```javascript
-module.exports = {
-  name: 'Your Agent Name',
-  role: 'Your Agent Role',
-
-  systemPrompt: `You are [name], [role].
-
-Your Purpose:
-- What your agent does
-- How it helps users
-
-Communication Style:
-- How it talks
-- Personality traits`,
-
-  generationOptions: {
-    temperature: 0.7,        // 0.3 = focused, 0.9 = creative
-    maxOutputTokens: 65565   // Response length
-  }
-};
-```
-
-### Image Agent Example
-
-Edit `agents/logo-designer.js`:
-
-```javascript
-module.exports = {
-  name: 'Image Analyst',
-
-  systemPrompt: `You analyze images and provide insights...`,
-
-  imageAnalysisPrompt: (userMessage) =>
-    `${module.exports.systemPrompt}\n\nUser: ${userMessage}\n\nAnalyze this image and provide...`,
-
-  generationOptions: {
-    temperature: 0.8,
-    maxOutputTokens: 65565
-  }
-};
-```
-
-That's it! Your agent configuration controls how it behaves.
-
----
-
-## 📁 Project Structure
-
-```
-agents/          # Agent personalities (edit these!)
-  ├── poker-coach.js           # Gemini poker coach
-  ├── logo-designer.js         # Gemini image analyzer
-  └── file-reference-agent.js  # Claude document-aware agent
-
-webhooks/        # Webhook handlers (usually no changes needed)
-  ├── text-webhook.js          # Gemini text handler
-  ├── image-webhook.js         # Gemini image handler
-  └── claude-webhook.js        # Claude with file reference
-
-services/        # Core functionality
-  ├── gemini-service.js        # Gemini API integration
-  ├── claude-service.js        # Claude API integration
-  ├── a1zap-client.js          # A1Zap messaging
-  ├── file-upload.js           # File upload utility
-  └── file-registry.js         # File storage manager
-
-config.js        # Environment configuration
-server.js        # Main server
-files-registry.json  # Uploaded files metadata (auto-created)
-```
-
-**To customize:** Edit files in `agents/` folder only.
-
----
-
-## 🎯 Agent Ideas
-
-### Gemini Agents
-- **Fitness Coach**: Workout plans and motivation
-- **Language Tutor**: Practice conversations
-- **Recipe Chef**: Cooking instructions
-- **Study Buddy**: Homework help
-- **Code Reviewer**: Review code snippets
-- **Fashion Stylist**: Outfit recommendations (image)
-- **Plant Doctor**: Plant care advice (image)
-
-### Claude Document-Aware Agents
-- **Company Policy Bot**: Upload company handbook, answer employee questions
-- **Product Support**: Upload product manual, help customers
-- **Legal Assistant**: Upload contracts/documents, answer legal questions
-- **Research Assistant**: Upload research papers, answer questions
-- **Course Tutor**: Upload course materials, help students learn
-- **Recipe Book**: Upload cookbook, suggest recipes and cooking tips
-- **Technical Documentation**: Upload API docs, help developers
-
----
-
-## 🐛 Quick Fixes
-
-**Agent not responding?**
-- Check Replit logs for errors
-- Verify all Secrets are set
-- Test: `https://your-repl.repl.co/health`
-
-**Gemini errors?**
-- Verify API key at [Google AI Studio](https://aistudio.google.com/apikey)
-
-**Claude errors?**
-- Verify API key at [Anthropic Console](https://console.anthropic.com/)
-- Ensure you have Files API access (currently in beta)
-
-**File upload not working?**
-- Check file type is supported (PDF, TXT, CSV, JSON, MD, HTML, XML)
-- Verify Claude API key is set
-- Check file size (Claude has file size limits)
-
-**Agent not using document context?**
-- Verify base file is set: `GET /files/base`
-- Ensure you uploaded with `setAsBase: true`
-- Check that you're using the Claude webhook (`/webhook/claude`)
-
-**A1Zap webhook not working?**
-- Check webhook URL in A1Zap dashboard
-- Ensure BASE_URL matches your Replit URL
-
----
-
-## 📚 Learn More
-
-- [Gemini API Docs](https://ai.google.dev/docs)
-- [Claude API Docs](https://docs.anthropic.com/)
+- [Claude API Documentation](https://docs.anthropic.com/)
 - [Claude Files API](https://docs.anthropic.com/en/api/files-create)
+- [Gemini API Documentation](https://ai.google.dev/docs)
 - [A1Zap Documentation](https://a1zap.com/docs)
 
 ---
 
-**Ready to build? Just edit the agent files and deploy!** 🚀
+## 📄 License
+
+This project is open source and available under the MIT License.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+**Ready to build intelligent file-aware agents? Get started in 5 minutes!** 🚀

@@ -2,11 +2,9 @@
 const config = require('./config');
 const express = require('express');
 const bodyParser = require('body-parser');
-const textWebhookHandler = require('./webhooks/text-webhook');
-const imageWebhookHandler = require('./webhooks/image-webhook');
 const claudeWebhookHandler = require('./webhooks/claude-webhook');
 const brandonEatsWebhookHandler = require('./webhooks/brandoneats-webhook');
-const { getBaseFileInfo, listUploadedFiles } = require('./services/file-upload');
+const { getBaseFileInfo, getAllAgentFiles, listUploadedFiles } = require('./services/file-upload');
 
 const app = express();
 
@@ -36,25 +34,18 @@ app.get('/health', (req, res) => {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    service: 'AI Webhook Agent (Gemini + Claude)',
-    version: '1.0.0',
+    service: 'File-Based AI Agent (Multi-Model)',
+    version: '2.0.0',
     endpoints: {
       health: 'GET /health',
-      textWebhook: 'POST /webhook/text',
-      imageWebhook: 'POST /webhook/image',
-      claudeWebhook: 'POST /webhook/claude',
+      claudeDocubot: 'POST /webhook/claude',
       brandonEatsWebhook: 'POST /webhook/brandoneats',
-      filesBase: 'GET /files/base',
+      filesBaseAll: 'GET /files/base',
+      filesBaseAgent: 'GET /files/base/:agent',
       filesList: 'GET /files/list'
     }
   });
 });
-
-// Text webhook endpoint (e.g., Ace Poker Bot)
-app.post('/webhook/text', textWebhookHandler);
-
-// Image webhook endpoint (e.g., Team Logo Generator)
-app.post('/webhook/image', imageWebhookHandler);
 
 // Claude webhook endpoint (with file reference support)
 app.post('/webhook/claude', claudeWebhookHandler);
@@ -65,16 +56,35 @@ app.post('/webhook/brandoneats', brandonEatsWebhookHandler);
 // File management endpoints
 app.get('/files/base', (req, res) => {
   try {
-    const baseFile = getBaseFileInfo();
-    if (!baseFile) {
-      return res.json({
-        success: true,
-        baseFile: null,
-        message: 'No base file set'
-      });
-    }
+    const agentFiles = getAllAgentFiles();
     res.json({
       success: true,
+      agentFiles: agentFiles,
+      message: 'Base files for all agents'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get base file for specific agent
+app.get('/files/base/:agent', (req, res) => {
+  try {
+    const agentName = req.params.agent;
+    if (!['brandoneats', 'claude-docubot'].includes(agentName)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid agent name. Use "brandoneats" or "claude-docubot"'
+      });
+    }
+    
+    const baseFile = getBaseFileInfo(agentName);
+    res.json({
+      success: true,
+      agent: agentName,
       baseFile: baseFile
     });
   } catch (error) {
@@ -106,15 +116,14 @@ const PORT = config.server.port;
 const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`\n🚀 AI Webhook Agent running on http://${HOST}:${PORT}`);
+  console.log(`\n🚀 File-Based AI Agent running on http://${HOST}:${PORT}`);
   console.log(`\nWebhook Endpoints:`);
-  console.log(`  POST /webhook/text        - Gemini text-based responses`);
-  console.log(`  POST /webhook/image       - Gemini image-based responses`);
-  console.log(`  POST /webhook/claude      - Claude with file references (generic)`);
-  console.log(`  POST /webhook/brandoneats - Brandon Eats data analyst (specialized)`);
-  console.log(`  GET  /health              - Health check`);
-  console.log(`  GET  /files/base          - Get base file info`);
-  console.log(`  GET  /files/list          - List all uploaded files\n`);
+  console.log(`  POST /webhook/claude        - Claude DocuBot (generic file reference agent)`);
+  console.log(`  POST /webhook/brandoneats   - Brandon Eats data analyst (specialized)`);
+  console.log(`  GET  /health                - Health check`);
+  console.log(`  GET  /files/base            - Get base files for all agents`);
+  console.log(`  GET  /files/base/:agent     - Get base file for specific agent`);
+  console.log(`  GET  /files/list            - List all uploaded files\n`);
   console.log(`Configuration:`);
   console.log(`  Gemini API: ${config.gemini.apiKey.includes('your_') ? '❌ Not configured' : '✅ Configured'}`);
   console.log(`  Claude API: ${config.claude.apiKey.includes('your_') ? '❌ Not configured' : '✅ Configured'}`);

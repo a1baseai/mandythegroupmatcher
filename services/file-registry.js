@@ -16,15 +16,32 @@ class FileRegistry {
     try {
       if (fs.existsSync(this.registryPath)) {
         const data = fs.readFileSync(this.registryPath, 'utf8');
-        return JSON.parse(data);
+        const registry = JSON.parse(data);
+        
+        // Migrate old format to new format
+        if (registry.baseFileId && !registry.agentFiles) {
+          console.log('📦 Migrating registry to per-agent format...');
+          return {
+            agentFiles: {
+              'brandoneats': registry.baseFileId,
+              'claude-docubot': registry.baseFileId
+            },
+            files: registry.files || []
+          };
+        }
+        
+        return registry;
       }
     } catch (error) {
       console.warn('Failed to load file registry:', error.message);
     }
     
-    // Return default structure
+    // Return default structure with per-agent tracking
     return {
-      baseFileId: null,
+      agentFiles: {
+        'brandoneats': null,
+        'claude-docubot': null
+      },
       files: []
     };
   }
@@ -47,21 +64,63 @@ class FileRegistry {
   }
 
   /**
-   * Get the base file ID
-   * @returns {string|null} Base file ID
+   * Get the base file ID for a specific agent
+   * @param {string} agentName - Agent name ('brandoneats' or 'claude-docubot')
+   * @returns {string|null} Base file ID for the agent
    */
-  getBaseFile() {
-    return this.registry.baseFileId;
+  getBaseFile(agentName = null) {
+    // Backward compatibility: if no agent specified, return first non-null file
+    if (!agentName) {
+      const files = this.registry.agentFiles || {};
+      return files['claude-docubot'] || files['brandoneats'] || null;
+    }
+    
+    if (!this.registry.agentFiles) {
+      this.registry.agentFiles = {
+        'brandoneats': null,
+        'claude-docubot': null
+      };
+    }
+    
+    return this.registry.agentFiles[agentName] || null;
   }
 
   /**
-   * Set the base file ID
+   * Set the base file ID for a specific agent
    * @param {string} fileId - Claude file ID
+   * @param {string} agentName - Agent name ('brandoneats' or 'claude-docubot')
    */
-  setBaseFile(fileId) {
-    this.registry.baseFileId = fileId;
+  setBaseFile(fileId, agentName = null) {
+    if (!this.registry.agentFiles) {
+      this.registry.agentFiles = {
+        'brandoneats': null,
+        'claude-docubot': null
+      };
+    }
+    
+    // If agent specified, set for that agent only
+    if (agentName) {
+      this.registry.agentFiles[agentName] = fileId;
+      console.log(`✅ Base file for ${agentName} set to: ${fileId}`);
+    } else {
+      // If no agent specified, set for all agents (backward compatibility)
+      this.registry.agentFiles['brandoneats'] = fileId;
+      this.registry.agentFiles['claude-docubot'] = fileId;
+      console.log(`✅ Base file set to: ${fileId} (all agents)`);
+    }
+    
     this.save();
-    console.log(`✅ Base file set to: ${fileId}`);
+  }
+
+  /**
+   * Get all agent file assignments
+   * @returns {Object} Map of agent names to file IDs
+   */
+  getAllAgentFiles() {
+    return this.registry.agentFiles || {
+      'brandoneats': null,
+      'claude-docubot': null
+    };
   }
 
   /**
@@ -83,6 +142,7 @@ class FileRegistry {
       mimeType: fileData.mime_type || fileData.mimeType,
       sizeBytes: fileData.size_bytes || fileData.sizeBytes,
       uploadedAt: new Date().toISOString(),
+      assignedToAgents: fileData.assignedToAgents || [],
       ...fileData
     };
 
@@ -118,9 +178,13 @@ class FileRegistry {
     this.registry.files = this.registry.files.filter(f => f.id !== fileId);
     
     if (this.registry.files.length < initialLength) {
-      // If this was the base file, clear it
-      if (this.registry.baseFileId === fileId) {
-        this.registry.baseFileId = null;
+      // If this was the base file for any agent, clear it
+      if (this.registry.agentFiles) {
+        Object.keys(this.registry.agentFiles).forEach(agent => {
+          if (this.registry.agentFiles[agent] === fileId) {
+            this.registry.agentFiles[agent] = null;
+          }
+        });
       }
       this.save();
       console.log(`✅ Removed file from registry: ${fileId}`);

@@ -67,6 +67,15 @@ async function brandonEatsWebhookHandler(req, res) {
 
     console.log(`Processing Brandon Eats query from chat ${chatId}: "${userMessage}"`);
 
+    // Check if base file is set for brandoneats agent
+    const baseFileId = fileRegistry.getBaseFile('brandoneats');
+    if (baseFileId) {
+      const fileInfo = fileRegistry.getFileById(baseFileId);
+      console.log(`📊 Using data file for Brandon Eats: ${fileInfo?.filename || baseFileId}`);
+    } else {
+      console.warn('⚠️  No base file set for Brandon Eats - responses will not have data context');
+    }
+
     // Easter egg: Check if user sent "a1" - respond with social share rich content
     if (userMessage.toLowerCase().trim() === 'a1') {
       console.log('🎉 A1 Easter egg triggered! Sending social share rich content...');
@@ -116,15 +125,6 @@ async function brandonEatsWebhookHandler(req, res) {
         easterEgg: 'a1',
         messageId: sendResult?.messageId
       });
-    }
-
-    // Check if base file is set
-    const baseFileId = fileRegistry.getBaseFile();
-    if (baseFileId) {
-      const fileInfo = fileRegistry.getFileById(baseFileId);
-      console.log(`📊 Using data file: ${fileInfo?.filename || baseFileId}`);
-    } else {
-      console.warn('⚠️  No base file set - responses will not have data context');
     }
 
     // Build conversation array

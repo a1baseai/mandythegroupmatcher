@@ -1,16 +1,18 @@
-# 🎨 BrandyEats Rich Content Guide
+# Rich Content Guide
 
 ## Overview
 
-The BrandyEats agent now supports **rich content messages** using the A1Zap Rich Messages API. This allows you to send interactive social media embeds, buttons, polls, and more alongside your text messages.
+The Brandon Eats agent supports **rich content messages** using the A1Zap Rich Messages API. Send interactive social media embeds, buttons, and more alongside text messages.
 
-## Quick Start - Social Shares
+---
 
-### The Social Share Blocks
+## Social Media Embeds
 
-Here are the three social share blocks ready to use:
+### Sending Social Shares
 
 ```javascript
+const brandonEatsClient = require('./services/brandoneats-client');
+
 const richContentBlocks = [
   {
     type: 'social_share',
@@ -37,319 +39,285 @@ const richContentBlocks = [
     order: 2
   }
 ];
-```
-
-## Testing
-
-### Quick Test (Recommended)
-
-Use the quick test script to send social shares immediately:
-
-```bash
-# Set your test chat ID and run
-TEST_CHAT_ID=j123abc456def node test-social-shares-quick.js
-```
-
-Or edit `test-social-shares-quick.js` and set `TEST_CHAT_ID` at the top, then:
-
-```bash
-node test-social-shares-quick.js
-```
-
-### Full Test Suite
-
-Run all tests including buttons, polls, and more:
-
-```bash
-# Edit test-rich-content.js and set TEST_CHAT_ID first
-node test-rich-content.js
-
-# Or run specific tests:
-node test-rich-content.js social    # Social share blocks
-node test-rich-content.js button    # Social shares + CTA button
-node test-rich-content.js text      # Text only (backward compatibility)
-```
-
-## Using in Your Code
-
-### Method 1: Using the sendMessage() method
-
-```javascript
-const brandonEatsClient = require('./services/brandoneats-client');
-
-// Send message with rich content blocks
-const result = await brandonEatsClient.sendMessage(
-  chatId,
-  'Check out our viral content!',
-  [
-    {
-      type: 'social_share',
-      data: {
-        platform: 'instagram',
-        url: 'https://www.instagram.com/reel/DQI4QE8jHiL/'
-      },
-      order: 0
-    }
-  ]
-);
-```
-
-### Method 2: Using the helper method
-
-```javascript
-const brandonEatsClient = require('./services/brandoneats-client');
-
-// Simpler syntax for social shares
-const socialLinks = [
-  { platform: 'instagram', url: 'https://www.instagram.com/reel/DQI4QE8jHiL/' },
-  { platform: 'tiktok', url: 'https://www.tiktok.com/@brandneweats/video/7546112444503035144' },
-  { platform: 'youtube', url: 'https://www.youtube.com/shorts/ToobPQS6_ZI' }
-];
-
-const result = await brandonEatsClient.sendSocialShareMessage(
-  chatId,
-  'Check out our latest content!',
-  socialLinks
-);
-```
-
-### Method 3: Text-only (backward compatible)
-
-```javascript
-// Still works exactly as before - no changes needed
-const result = await brandonEatsClient.sendMessage(
-  chatId,
-  'This is a simple text message'
-);
-```
-
-## Integration with BrandyEats Webhook
-
-You can now use rich content in your webhook responses:
-
-```javascript
-// In webhooks/brandoneats-webhook.js
-const brandonEatsClient = require('../services/brandoneats-client');
-
-// When responding to a user query about social content
-const socialLinks = [
-  { platform: 'instagram', url: 'https://www.instagram.com/reel/DQI4QE8jHiL/' },
-  { platform: 'tiktok', url: 'https://www.tiktok.com/@brandneweats/video/7546112444503035144' }
-];
-
-await brandonEatsClient.sendSocialShareMessage(
-  chatId,
-  '🔥 Here are our most popular posts this week!',
-  socialLinks
-);
-```
-
-## Supported Rich Content Types
-
-The A1Zap Rich Messages API supports 17+ content types:
-
-### Social Media
-- `social_share` - Instagram, TikTok, YouTube, Vimeo, Twitter, Twitch
-
-### Interactive
-- `button_card` - Call-to-action buttons
-- `quick_replies` - Fast response options
-- `poll` - Interactive voting/surveys
-
-### Media
-- `carousel` - Image sliders
-- `gallery` - Image grids
-
-### Cards
-- `product_card` - E-commerce items
-- `event_card` - Event information
-- `profile_card` - User profiles
-- `location_card` - Geographic locations
-- `contact_card` - Contact details
-- `link_preview` - URL previews
-
-See the full Rich Messages Migration Guide for details on all types.
-
-## Example: Social Shares + CTA Button
-
-Combine multiple content types for powerful messages:
-
-```javascript
-const richContentBlocks = [
-  // Instagram embed
-  {
-    type: 'social_share',
-    data: {
-      platform: 'instagram',
-      url: 'https://www.instagram.com/reel/DQI4QE8jHiL/'
-    },
-    order: 0
-  },
-  // TikTok embed
-  {
-    type: 'social_share',
-    data: {
-      platform: 'tiktok',
-      url: 'https://www.tiktok.com/@brandneweats/video/7546112444503035144'
-    },
-    order: 1
-  },
-  // Call-to-action button
-  {
-    type: 'button_card',
-    data: {
-      title: 'Love what you see?',
-      description: 'Follow us for more delicious content!',
-      buttons: [
-        {
-          id: 'btn_follow_ig',
-          label: '📸 Follow on Instagram',
-          action: 'url',
-          value: 'https://www.instagram.com/brandneweats',
-          variant: 'primary'
-        },
-        {
-          id: 'btn_follow_tiktok',
-          label: '🎵 Follow on TikTok',
-          action: 'url',
-          value: 'https://www.tiktok.com/@brandneweats',
-          variant: 'secondary'
-        }
-      ]
-    },
-    order: 2
-  }
-];
 
 await brandonEatsClient.sendMessage(
   chatId,
-  '🍕 Check out our viral content!',
+  '🔥 Check out these viral videos!',
   richContentBlocks
 );
 ```
 
-## Validation
+### Supported Platforms
+- **Instagram** - Posts and Reels
+- **TikTok** - Videos
+- **YouTube** - Videos and Shorts
+- **Facebook** - Posts (experimental)
 
-The API validates all rich content blocks. Common errors:
+---
 
-### Invalid Platform
+## Automatic Social Link Extraction
+
+The Brandon Eats agent automatically detects restaurant names in responses and sends relevant TikTok videos as follow-up messages.
+
+### How It Works
+
+1. Agent generates response mentioning restaurants
+2. System extracts restaurant names from the response
+3. Matches names against CSV data
+4. Finds TikTok URLs for those restaurants
+5. Sends follow-up message with video embeds
+
+### Example
+
+**User:** "What are the best burger places?"
+
+**Agent Response:** "Here are the top burger places: Five Guys, Shake Shack..."
+
+**Automatic Follow-up:** 🎥 System sends TikTok videos for Five Guys and Shake Shack
+
+### Configuration
+
+The social link extractor looks for:
+- Restaurant names in agent responses
+- Matching entries in CSV data
+- TikTok URLs in CSV columns
+
+Supported CSV column names:
+- `tiktok_url`
+- `tiktok`
+- `tiktok_link`
+- `social_tiktok`
+
+---
+
+## Manual Social Share Example
+
+### Quick Test Script
+
 ```javascript
-// ❌ Wrong
-{ platform: 'facebook', url: '...' }
+const brandonEatsClient = require('./services/brandoneats-client');
 
-// ✅ Correct
-{ platform: 'instagram', url: '...' }  // Must be: instagram, tiktok, youtube, vimeo, twitter, or twitch
-```
-
-### Missing Required Fields
-```javascript
-// ❌ Wrong
-{
-  type: 'button_card',
-  data: {
-    buttons: [...]  // Missing 'title' field
-  }
+async function sendSocialShares() {
+  const chatId = 'your-chat-id';
+  
+  const richContent = [
+    {
+      type: 'social_share',
+      data: {
+        platform: 'tiktok',
+        url: 'https://www.tiktok.com/@brandneweats/video/7546112444503035144'
+      },
+      order: 0
+    }
+  ];
+  
+  await brandonEatsClient.sendMessage(
+    chatId,
+    '🎥 Check out this video!',
+    richContent
+  );
+  
+  console.log('✅ Social share sent!');
 }
 
-// ✅ Correct
+sendSocialShares();
+```
+
+---
+
+## Rich Content Block Structure
+
+### Basic Structure
+```javascript
 {
-  type: 'button_card',
+  type: 'social_share',      // Block type
   data: {
-    title: 'Choose an option',
-    buttons: [...]
-  }
+    platform: 'tiktok',      // Social platform
+    url: 'https://...'       // Full URL to post/video
+  },
+  order: 0                   // Display order (0, 1, 2...)
 }
 ```
 
-### Duplicate IDs
+### Multiple Blocks
 ```javascript
-// ❌ Wrong
-buttons: [
-  { id: 'btn_1', label: 'Option 1' },
-  { id: 'btn_1', label: 'Option 2' }  // Duplicate ID!
-]
-
-// ✅ Correct
-buttons: [
-  { id: 'btn_1', label: 'Option 1' },
-  { id: 'btn_2', label: 'Option 2' }
-]
+const richContentBlocks = [
+  { type: 'social_share', data: { platform: 'instagram', url: '...' }, order: 0 },
+  { type: 'social_share', data: { platform: 'tiktok', url: '...' }, order: 1 },
+  { type: 'social_share', data: { platform: 'youtube', url: '...' }, order: 2 }
+];
 ```
 
-## Limits
+The `order` field determines display sequence.
 
-- **Maximum blocks per message:** 10
-- **Maximum buttons per card:** 6
-- **Maximum poll options:** 10
-- **Maximum carousel items:** 10
-- **Maximum gallery items:** 20
-- **Maximum quick replies:** 12
+---
 
-## Files
+## CSV Setup for Auto-Extraction
 
-- **`services/brandoneats-client.js`** - Updated client with rich content support
-- **`test-social-shares-quick.js`** - Quick test script for social shares
-- **`test-rich-content.js`** - Full test suite with all examples
-- **`RICH_CONTENT_GUIDE.md`** - This guide
+### Required Columns
+
+Your CSV should include:
+1. **Restaurant name column** (e.g., `name`, `restaurant_name`)
+2. **TikTok URL column** (e.g., `tiktok_url`, `tiktok`)
+
+### Example CSV Structure
+
+```csv
+name,rating,location,tiktok_url
+Five Guys,4.5,New York,https://www.tiktok.com/@brandneweats/video/123
+Shake Shack,4.7,Manhattan,https://www.tiktok.com/@brandneweats/video/456
+In-N-Out,4.8,LA,https://www.tiktok.com/@brandneweats/video/789
+```
+
+### Upload Your CSV
+
+```bash
+npm run upload files/brandoneats.csv
+```
+
+---
+
+## Testing
+
+### Test with Quick Script
+
+```bash
+# Set your test chat ID
+TEST_CHAT_ID=your_chat_id node test-social-shares-quick.js
+```
+
+### Test via API
+
+```bash
+curl -X POST http://localhost:3000/webhook/brandoneats \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chat": {"id": "test-123"},
+    "message": {"content": "Tell me about Five Guys"},
+    "agent": {"id": "agent-123"}
+  }'
+```
+
+If "Five Guys" is in your CSV with a TikTok URL, you'll receive:
+1. Text response about Five Guys
+2. Automatic follow-up with TikTok embed
+
+---
+
+## Customizing Social Extraction
+
+Edit `services/social-link-extractor.js` to customize:
+
+### Change Detection Logic
+```javascript
+// Modify how restaurant names are extracted
+function extractRestaurantNames(text) {
+  // Your custom logic here
+}
+```
+
+### Change Platform
+```javascript
+// Currently extracts TikTok URLs
+// Modify to extract Instagram, YouTube, etc.
+const tiktokUrl = row['tiktok_url'] || row['tiktok'];
+```
+
+### Change Message Format
+```javascript
+// In webhooks/brandoneats-webhook.js
+const socialMessage = relevantLinks.length === 1
+  ? `🎥 Here's a video about ${relevantLinks[0].name}!`
+  : `🎥 Here are some videos about these places!`;
+```
+
+---
+
+## Troubleshooting
+
+### Social links not appearing?
+1. Check CSV has TikTok URLs
+2. Verify CSV column name matches expected names
+3. Ensure restaurant name in response exactly matches CSV
+4. Check server logs for extraction debug info
+
+### Embeds not showing in A1Zap?
+1. Verify URL format is correct
+2. Check platform is supported
+3. Test with sample URLs provided above
+4. Ensure A1Zap app is updated
+
+### Too many/few links sent?
+1. Adjust detection logic in `social-link-extractor.js`
+2. Modify relevance threshold
+3. Limit number of links sent per message
+
+---
+
+## Advanced: Other Rich Content Types
+
+A1Zap supports additional rich content types:
+
+### Buttons (Coming Soon)
+```javascript
+{
+  type: 'button',
+  data: {
+    text: 'View Menu',
+    url: 'https://restaurant.com/menu'
+  },
+  order: 0
+}
+```
+
+### Cards (Coming Soon)
+```javascript
+{
+  type: 'card',
+  data: {
+    title: 'Restaurant Name',
+    description: 'Great burgers!',
+    image: 'https://...',
+    url: 'https://...'
+  },
+  order: 0
+}
+```
+
+---
 
 ## API Reference
 
-### sendMessage(chatId, content, richContentBlocks)
+### brandonEatsClient.sendMessage(chatId, text, richContentBlocks)
 
-Send a message with optional rich content blocks.
+Send a message with optional rich content.
 
 **Parameters:**
-- `chatId` (string) - The chat ID to send to
-- `content` (string) - The text message content
-- `richContentBlocks` (Array, optional) - Array of rich content block objects
+- `chatId` (string) - A1Zap chat ID
+- `text` (string) - Message text
+- `richContentBlocks` (array, optional) - Rich content blocks
 
-**Returns:** Promise<Object> - API response with messageId and timestamp
+**Returns:** Promise<Object>
 
 **Example:**
 ```javascript
 const result = await brandonEatsClient.sendMessage(
-  'j123abc456def',
-  'Hello!',
-  [{ type: 'social_share', data: { platform: 'instagram', url: '...' }, order: 0 }]
-);
-```
-
-### sendSocialShareMessage(chatId, content, socialLinks)
-
-Helper method for sending social media embeds.
-
-**Parameters:**
-- `chatId` (string) - The chat ID to send to
-- `content` (string) - The text message content
-- `socialLinks` (Array) - Array of `{ platform, url }` objects
-
-**Returns:** Promise<Object> - API response
-
-**Example:**
-```javascript
-const result = await brandonEatsClient.sendSocialShareMessage(
-  'j123abc456def',
+  'chat123',
   'Check this out!',
-  [
-    { platform: 'instagram', url: 'https://www.instagram.com/reel/...' },
-    { platform: 'tiktok', url: 'https://www.tiktok.com/@user/video/...' }
-  ]
+  [{ type: 'social_share', data: { platform: 'tiktok', url: '...' }, order: 0 }]
 );
 ```
 
-## Need Help?
+---
 
-- Check the full Rich Messages Migration Guide in your documentation
-- Look at the test files for working examples
-- Check console output for detailed error messages and validation errors
+## Best Practices
 
-## Next Steps
+1. **Order matters** - Use the `order` field to control display sequence
+2. **Limit count** - Don't send more than 3-5 embeds per message
+3. **Relevant content** - Only send social content that's relevant to the response
+4. **Test URLs** - Verify social URLs are valid before sending
+5. **Graceful degradation** - Text message should be useful even without embeds
 
-1. Get a test chat ID from A1Zap
-2. Run `TEST_CHAT_ID=your_chat_id node test-social-shares-quick.js`
-3. Check WhatsApp to see your rich content!
-4. Integrate into your webhook handlers
-5. Experiment with other content types (buttons, polls, carousels)
+---
 
-🎉 Happy coding!
-
+**Questions? Check the main `README.md` or `SETUP.md` for more info.**

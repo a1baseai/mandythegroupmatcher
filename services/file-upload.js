@@ -8,7 +8,8 @@ const fileRegistry = require('./file-registry');
  * Upload a file to Claude's Files API
  * @param {string} filePath - Path to the file to upload
  * @param {Object} options - Upload options
- * @param {boolean} options.setAsBase - Set this file as the base file for all responses (default: false)
+ * @param {boolean} options.setAsBase - Set this file as the base file (default: false)
+ * @param {string} options.agent - Agent name to assign file to ('brandoneats' or 'claude-docubot')
  * @returns {Promise<Object>} File metadata including ID
  */
 async function uploadFileToClaude(filePath, options = {}) {
@@ -64,18 +65,25 @@ async function uploadFileToClaude(filePath, options = {}) {
     console.log(`File ID: ${fileUpload.id}`);
 
     // Store in registry
+    const assignedToAgents = options.agent ? [options.agent] : [];
     const fileEntry = fileRegistry.addFile({
       id: fileUpload.id,
       filename: fileUpload.filename || filename,
       mimeType: mimeType,
       sizeBytes: fileUpload.size_bytes || stats.size,
-      originalPath: filePath
+      originalPath: filePath,
+      assignedToAgents: assignedToAgents
     });
 
     // Set as base file if requested
     if (options.setAsBase) {
-      fileRegistry.setBaseFile(fileUpload.id);
-      console.log('✅ Set as base file for all agent responses');
+      if (options.agent) {
+        fileRegistry.setBaseFile(fileUpload.id, options.agent);
+        console.log(`✅ Set as base file for ${options.agent} agent`);
+      } else {
+        fileRegistry.setBaseFile(fileUpload.id);
+        console.log('✅ Set as base file for all agents');
+      }
     }
 
     return {
@@ -94,17 +102,34 @@ async function uploadFileToClaude(filePath, options = {}) {
 }
 
 /**
- * Get information about the current base file
+ * Get information about the current base file for an agent
+ * @param {string} agentName - Agent name ('brandoneats' or 'claude-docubot')
  * @returns {Object|null} Base file information or null if not set
  */
-function getBaseFileInfo() {
-  const baseFileId = fileRegistry.getBaseFile();
+function getBaseFileInfo(agentName = null) {
+  const baseFileId = fileRegistry.getBaseFile(agentName);
   if (!baseFileId) {
     return null;
   }
 
   const fileInfo = fileRegistry.getFileById(baseFileId);
   return fileInfo;
+}
+
+/**
+ * Get all agent file assignments
+ * @returns {Object} Map of agent names to their base file info
+ */
+function getAllAgentFiles() {
+  const agentFiles = fileRegistry.getAllAgentFiles();
+  const result = {};
+  
+  Object.keys(agentFiles).forEach(agent => {
+    const fileId = agentFiles[agent];
+    result[agent] = fileId ? fileRegistry.getFileById(fileId) : null;
+  });
+  
+  return result;
 }
 
 /**
@@ -118,6 +143,7 @@ function listUploadedFiles() {
 module.exports = {
   uploadFileToClaude,
   getBaseFileInfo,
+  getAllAgentFiles,
   listUploadedFiles
 };
 

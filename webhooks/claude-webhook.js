@@ -1,11 +1,11 @@
 const claudeService = require('../services/claude-service');
 const a1zapClient = require('../services/a1zap-client');
-const fileReferenceAgent = require('../agents/file-reference-agent');
+const claudeDocubotAgent = require('../agents/claude-docubot-agent');
 const fileRegistry = require('../services/file-registry');
 
 /**
- * Claude webhook handler with file reference support
- * Uses the file-reference-agent configuration
+ * Claude DocuBot webhook handler with file reference support
+ * Uses the claude-docubot-agent configuration
  */
 async function claudeWebhookHandler(req, res) {
   try {
@@ -35,13 +35,13 @@ async function claudeWebhookHandler(req, res) {
 
     console.log(`Processing message from chat ${chatId}: "${userMessage}"`);
 
-    // Check if base file is set
-    const baseFileId = fileRegistry.getBaseFile();
+    // Check if base file is set for claude-docubot agent
+    const baseFileId = fileRegistry.getBaseFile('claude-docubot');
     if (baseFileId) {
       const fileInfo = fileRegistry.getFileById(baseFileId);
-      console.log(`📄 Using base file: ${fileInfo?.filename || baseFileId}`);
+      console.log(`📄 Using base file for Claude DocuBot: ${fileInfo?.filename || baseFileId}`);
     } else {
-      console.warn('⚠️  No base file set - responses will not have document context');
+      console.warn('⚠️  No base file set for Claude DocuBot - responses will not have document context');
     }
 
     // Build conversation array
@@ -89,14 +89,14 @@ async function claudeWebhookHandler(req, res) {
     if (conversation.length > 1) {
       // Use chat with history
       response = await claudeService.chatWithBaseFile(conversation, {
-        ...fileReferenceAgent.generationOptions,
-        systemPrompt: fileReferenceAgent.systemPrompt
+        ...claudeDocubotAgent.generationOptions,
+        systemPrompt: claudeDocubotAgent.systemPrompt
       });
     } else {
       // First message - use generateWithBaseFile
       response = await claudeService.generateWithBaseFile(
-        `${fileReferenceAgent.systemPrompt}\n\nUser: ${userMessage}\n\nAssistant:`,
-        fileReferenceAgent.generationOptions
+        `${claudeDocubotAgent.systemPrompt}\n\nUser: ${userMessage}\n\nAssistant:`,
+        claudeDocubotAgent.generationOptions
       );
     }
 
@@ -118,7 +118,7 @@ async function claudeWebhookHandler(req, res) {
     // Return success
     res.json({
       success: true,
-      agent: fileReferenceAgent.name,
+      agent: claudeDocubotAgent.name,
       response: response,
       baseFile: baseFileId ? fileRegistry.getFileById(baseFileId)?.filename : null,
       testMode: chatId.startsWith('test-')
