@@ -162,11 +162,13 @@ General-purpose document-aware agent:
 ### 2. Brandon Eats Data Analyst (`/webhook/brandoneats`)
 Specialized for restaurant/food data:
 - CSV data parsing and analysis
+- **Intelligent filtering system** - only sends relevant responses and social links
 - Social media link extraction (Instagram, TikTok, YouTube)
 - Rich content responses with embedded media
 - Custom prompts for food industry queries
 
 **Agent Config:** `agents/brandoneats-agent.js`
+**📖 See `INTELLIGENT_FILTERING.md` for details on the smart triage and filtering system.**
 
 ---
 
@@ -268,14 +270,24 @@ await brandonEatsClient.sendMessage(chatId, 'Check out these videos!', richConte
 
 ## 🚀 Advanced Features
 
-### Smart Social Link Extraction
+### Intelligent Filtering & Social Link Extraction
 
-The Brandon Eats agent automatically detects restaurant names in responses and sends relevant TikTok videos as follow-up messages:
+The Brandon Eats agent uses a sophisticated two-step filtering system:
+
+1. **Off-Topic Triage**: Filters out irrelevant questions (weather, sports, etc.) before processing
+2. **Smart Social Links**: Only sends TikTok videos when specific restaurants are discussed
 
 ```javascript
 // Automatically triggered when restaurant names are mentioned
-// No code needed - it just works!
+// Intelligently filters to prevent irrelevant content
+// See INTELLIGENT_FILTERING.md for full details
 ```
+
+**Benefits:**
+- Saves API costs by avoiding unnecessary processing
+- Users only get relevant social media links
+- Clear boundaries about bot's purpose
+- Assumes user intent for food/travel questions
 
 ### Conversation History
 
@@ -353,8 +365,9 @@ Built-in duplicate message detection prevents double-processing:
 ## 📚 Documentation
 
 - `AGENT_PERSONALITY_GUIDE.md` - Customize agent personality and behavior
-- `A1ZAP_SETUP_GUIDE.md` - Detailed A1Zap setup instructions
+- `INTELLIGENT_FILTERING.md` - Smart triage and social link filtering system
 - `RICH_CONTENT_GUIDE.md` - Rich content formatting and social embeds
+- `SETUP.md` - Complete setup and deployment guide
 
 ---
 

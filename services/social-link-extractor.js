@@ -97,11 +97,23 @@ class SocialLinkExtractor {
 
   /**
    * Use Claude AI to intelligently detect which restaurants/places from the CSV
-   * are actually mentioned in the bot's response
+   * are actually mentioned in the bot's response.
+   * 
+   * This is Stage 2B of the social link filtering process (Stage 2A happens in webhook).
+   * 
+   * How it works:
+   * 1. Takes the bot's response and the list of all restaurants from the CSV
+   * 2. Uses Claude AI to analyze which restaurants are ACTUALLY DISCUSSED (not just mentioned)
+   * 3. Returns only restaurants that are key subjects of the response
+   * 
+   * The AI is trained to be strict:
+   * - "You should try Pho 24" → Include "Pho 24" ✓
+   * - "Brandon has reviewed many places" → Return empty array (no specific place) ✗
+   * - "What would you like to know?" → Return empty array (clarification) ✗
    * 
    * @param {string} responseText - The text response from the bot
    * @param {Array} allLinks - Array of all social link objects from CSV
-   * @returns {Array} - Array of restaurant names that Claude identified as mentioned
+   * @returns {Array} - Array of restaurant names that Claude identified as meaningfully discussed
    */
   async detectMentionedRestaurants(responseText, allLinks) {
     try {
@@ -127,14 +139,25 @@ ${responseText}
 AVAILABLE RESTAURANT/PLACE NAMES:
 ${restaurantNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}
 
-Task: Which of these restaurants or places are actually mentioned, discussed, or referenced in the response text?
+Task: Which of these restaurants or places are ACTUALLY DISCUSSED OR RECOMMENDED in the response text?
 
-Rules:
-- Only return names that are clearly mentioned or discussed
+STRICT Rules:
+- ONLY return names that are specifically mentioned, discussed, or recommended in the response
+- The restaurant/place must be a key subject of the response, not just a passing mention
 - Match names even if slightly misspelled or abbreviated in the response
-- If a place is recommended or described, count it as mentioned
+- DO NOT include names that appear in generic statements or context without being discussed
+- If the response is just a greeting, clarification, or generic statement, return "NONE"
+- If the response doesn't actually discuss specific places, return "NONE"
 - Return ONLY the exact names from the list above, one per line
-- If none are mentioned, return "NONE"
+- If none are meaningfully discussed, return "NONE"
+
+Examples:
+- "Brandon loved the pho at Pho 24" → Include "Pho 24"
+- "You should try Banh Mi 25" → Include "Banh Mi 25"
+- "Check out Highlands Coffee for great drinks" → Include "Highlands Coffee"
+- "Brandon has reviewed many places" → Return "NONE" (no specific place discussed)
+- "What restaurants do you want to know about?" → Return "NONE" (clarification question)
+- "I can help you find information" → Return "NONE" (generic statement)
 
 Return only the names, nothing else:`;
 
