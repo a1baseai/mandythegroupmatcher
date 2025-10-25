@@ -151,9 +151,11 @@ Rules for MENTIONED restaurants:
 - DO NOT include names from generic statements
 
 Rules for SUGGESTING ALTERNATIVES:
-- If the response says something like "Brandon doesn't cover that type of place" or "I don't have high-end restaurants"
-- BUT there ARE potentially relevant alternatives in the data that could be helpful
-- Set this to true so we can suggest related options with context
+- ONLY set to YES if the response EXPLICITLY states "Brandon doesn't have/cover X" or "Brandon hasn't reviewed X"
+- The response must clearly indicate that the user's request cannot be fulfilled with current data
+- If ANY restaurant is mentioned by name (even if not in our list), set to NO
+- Generic responses or greetings should be NO
+- If the response says "Brandon reviewed X" (even if X isn't in our list), set to NO - this means the bot is answering the question
 
 Format your response as:
 MENTIONED: [list restaurant names, one per line, or "NONE"]
