@@ -33,14 +33,32 @@ class ClaudeService {
         // Get file info from registry
         const fileInfo = fileRegistry.getFileById(options.fileId);
         
-        if (fileInfo && fileInfo.originalPath && fs.existsSync(fileInfo.originalPath)) {
-          // CSV files are not supported as document blocks per Files API docs
-          // Read and include content directly as text
-          const fileContent = fs.readFileSync(fileInfo.originalPath, 'utf-8');
+        if (fileInfo) {
+          // Try to read from originalPath first, then try relative path
+          let fileContent = null;
+          let filePath = null;
           
-          messages[0].content = `Here's the data file (${fileInfo.filename}):\n\n${fileContent}\n\n---\n\n${prompt}`;
+          if (fileInfo.originalPath && fs.existsSync(fileInfo.originalPath)) {
+            filePath = fileInfo.originalPath;
+          } else if (fileInfo.filename) {
+            // Try relative path from project root
+            const relativePath = path.join(__dirname, '..', 'files', fileInfo.filename);
+            if (fs.existsSync(relativePath)) {
+              filePath = relativePath;
+            }
+          }
+          
+          if (filePath) {
+            // CSV files are not supported as document blocks per Files API docs
+            // Read and include content directly as text
+            fileContent = fs.readFileSync(filePath, 'utf-8');
+            messages[0].content = `Here's the data file (${fileInfo.filename}):\n\n${fileContent}\n\n---\n\n${prompt}`;
+            console.log(`✅ Loaded file content from: ${filePath}`);
+          } else {
+            console.warn(`⚠️  File not found for ID: ${options.fileId} (tried: ${fileInfo.originalPath}, files/${fileInfo.filename})`);
+          }
         } else {
-          console.warn(`⚠️  File not found for ID: ${options.fileId}`);
+          console.warn(`⚠️  File metadata not found for ID: ${options.fileId}`);
         }
       }
 
@@ -78,18 +96,37 @@ class ClaudeService {
           // Get file info from registry
           const fileInfo = fileRegistry.getFileById(options.fileId);
           
-          if (fileInfo && fileInfo.originalPath && fs.existsSync(fileInfo.originalPath)) {
-            // CSV files are not supported as document blocks per Files API docs
-            // Read and include content directly as text
-            const fileContent = fs.readFileSync(fileInfo.originalPath, 'utf-8');
-            const messageText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+          if (fileInfo) {
+            // Try to read from originalPath first, then try relative path
+            let fileContent = null;
+            let filePath = null;
             
-            return {
-              role: msg.role,
-              content: `Here's the data file (${fileInfo.filename}):\n\n${fileContent}\n\n---\n\n${messageText}`
-            };
+            if (fileInfo.originalPath && fs.existsSync(fileInfo.originalPath)) {
+              filePath = fileInfo.originalPath;
+            } else if (fileInfo.filename) {
+              // Try relative path from project root
+              const relativePath = path.join(__dirname, '..', 'files', fileInfo.filename);
+              if (fs.existsSync(relativePath)) {
+                filePath = relativePath;
+              }
+            }
+            
+            if (filePath) {
+              // CSV files are not supported as document blocks per Files API docs
+              // Read and include content directly as text
+              fileContent = fs.readFileSync(filePath, 'utf-8');
+              const messageText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+              console.log(`✅ Loaded file content from: ${filePath}`);
+              
+              return {
+                role: msg.role,
+                content: `Here's the data file (${fileInfo.filename}):\n\n${fileContent}\n\n---\n\n${messageText}`
+              };
+            } else {
+              console.warn(`⚠️  File not found for ID: ${options.fileId} (tried: ${fileInfo.originalPath}, files/${fileInfo.filename})`);
+            }
           } else {
-            console.warn(`⚠️  File not found for ID: ${options.fileId}`);
+            console.warn(`⚠️  File metadata not found for ID: ${options.fileId}`);
           }
         }
 
