@@ -107,10 +107,17 @@ class GeminiService {
       };
 
       // Convert messages to Gemini format
-      const history = messages.slice(0, -1).map(msg => ({
+      let history = messages.slice(0, -1).map(msg => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: msg.content }]
       }));
+
+      // Gemini requires chat history to start with a user message
+      // Remove any leading model messages
+      while (history.length > 0 && history[0].role === 'model') {
+        console.log('⚠️  Removing leading model message from history (Gemini requires user message first)');
+        history.shift();
+      }
 
       const chat = model.startChat({
         generationConfig,

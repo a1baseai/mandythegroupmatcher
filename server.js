@@ -126,46 +126,7 @@ const PORT = config.server.port;
 // Bind to 0.0.0.0 in production/Railway, localhost for local dev
 const HOST = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
-// Initialize files on startup
-async function initializeFiles() {
-  const { uploadFileToClaude, getBaseFileInfo } = require('./services/file-upload');
-  const path = require('path');
-  const fileRegistry = require('./services/file-registry');
-  
-  console.log('\n📂 Initializing files...');
-  
-  try {
-    // Check if file is already uploaded and assigned
-    const existingFile = getBaseFileInfo('brandoneats');
-    
-    if (existingFile && existingFile.id) {
-      console.log(`✅ File already initialized: ${existingFile.id}`);
-      console.log(`   - File: ${existingFile.filename}`);
-      console.log(`   - Uploaded: ${existingFile.uploadedAt}\n`);
-      return;
-    }
-    
-    // Upload brandoneats.csv for both agents
-    const brandonEatsFile = path.join(__dirname, 'files', 'brandoneats.csv');
-    
-    console.log('📤 Uploading brandoneats.csv to Claude...');
-    const result = await uploadFileToClaude(brandonEatsFile, {
-      setAsBase: true,
-      agent: 'brandoneats'
-    });
-    
-    // Also set it for claude-docubot
-    fileRegistry.setBaseFile(result.fileId, 'claude-docubot');
-    
-    console.log(`✅ File uploaded successfully: ${result.fileId}`);
-    console.log(`   - Assigned to: brandoneats, claude-docubot\n`);
-  } catch (error) {
-    console.error('⚠️  File initialization failed:', error.message);
-    console.log('   Continuing with server startup...\n');
-  }
-}
-
-const server = app.listen(PORT, HOST, async () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`\n🚀 File-Based AI Agent running on http://${HOST}:${PORT}`);
   console.log(`\nWebhook Endpoints:`);
   console.log(`  POST /webhook/claude        - Claude DocuBot (generic file reference agent)`);
@@ -180,9 +141,6 @@ const server = app.listen(PORT, HOST, async () => {
   console.log(`  Gemini API: ${config.gemini.apiKey.includes('your_') ? '❌ Not configured' : '✅ Configured'}`);
   console.log(`  Claude API: ${config.claude.apiKey.includes('your_') ? '❌ Not configured' : '✅ Configured'}`);
   console.log(`  A1Zap API: ${config.a1zap.apiKey.includes('your_') ? '❌ Not configured' : '✅ Configured'}\n`);
-  
-  // Initialize files after server starts
-  await initializeFiles();
   
   // Optional: Schedule cleanup of old images (run daily at 3 AM)
   const schedule = require('node:timers');

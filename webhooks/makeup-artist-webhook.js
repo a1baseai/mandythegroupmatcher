@@ -1,5 +1,5 @@
 const geminiService = require('../services/gemini-service');
-const a1zapClient = require('../services/a1zap-client');
+const makeupArtistClient = require('../services/makeup-artist-client');
 const imageStorage = require('../services/image-storage');
 const makeupArtistAgent = require('../agents/makeup-artist-agent');
 const webhookHelpers = require('../services/webhook-helpers');
@@ -60,7 +60,7 @@ async function makeupArtistWebhookHandler(req, res) {
 
     // Try to fetch conversation history with image tracking enabled
     const conversation = await webhookHelpers.fetchAndProcessHistory(
-      a1zapClient,
+      makeupArtistClient,
       chatId,
       agentId,
       20,  // Last 20 messages for context
@@ -185,7 +185,7 @@ async function makeupArtistWebhookHandler(req, res) {
             mediaOptions.height = dimensions.height;
           }
           
-          const sendResult = await a1zapClient.sendMediaMessage(
+          const sendResult = await makeupArtistClient.sendMediaMessage(
             chatId, 
             responseText, 
             imagePublicUrl,
@@ -211,7 +211,7 @@ async function makeupArtistWebhookHandler(req, res) {
         
         // Fall back to text-only response
         responseText += '\n\n(Note: There was an issue processing the generated image)';
-        await webhookHelpers.sendResponse(a1zapClient, chatId, responseText);
+        await webhookHelpers.sendResponse(makeupArtistClient, chatId, responseText);
         
         return res.json({
           success: true,
@@ -225,7 +225,7 @@ async function makeupArtistWebhookHandler(req, res) {
       // No image generated in result - send text-only response
       console.log('⚠️  No image generated in API response');
       
-      await webhookHelpers.sendResponse(a1zapClient, chatId, responseText);
+      await webhookHelpers.sendResponse(makeupArtistClient, chatId, responseText);
 
       return res.json({
         success: true,
@@ -273,7 +273,7 @@ async function makeupArtistWebhookHandler(req, res) {
       console.log('AI response generated:', responseText.substring(0, 100) + '...');
 
       // Send text response
-      await webhookHelpers.sendResponse(a1zapClient, chatId, responseText);
+      await webhookHelpers.sendResponse(makeupArtistClient, chatId, responseText);
 
       return res.json({
         success: true,
@@ -293,7 +293,7 @@ async function makeupArtistWebhookHandler(req, res) {
     try {
       const chatId = req.body?.chat?.id;
       if (chatId && !webhookHelpers.isTestChat(chatId)) {
-        await a1zapClient.sendMessage(
+        await makeupArtistClient.sendMessage(
           chatId,
           "I apologize, but I encountered an error processing your request. Please try again or contact support if the issue persists."
         );

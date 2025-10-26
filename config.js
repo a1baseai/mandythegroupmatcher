@@ -24,6 +24,13 @@ module.exports = {
     apiUrl: process.env.BRANDONEATS_API_URL || 'https://api.a1zap.com/v1/messages/individual'
   },
 
+  // Makeup Artist Specific A1Zap Configuration
+  makeupArtist: {
+    apiKey: process.env.MAKEUP_ARTIST_API_KEY || process.env.A1ZAP_API_KEY || 'your_makeup_artist_api_key_here',
+    agentId: process.env.MAKEUP_ARTIST_AGENT_ID || 'j974khr39n4esba376mjawp2jh7t69f3',
+    apiUrl: process.env.MAKEUP_ARTIST_API_URL || 'https://api.a1zap.com/v1/messages/individual'
+  },
+
   // Claude AI Configuration
   claude: {
     apiKey: process.env.CLAUDE_API_KEY || 'your_claude_api_key_here',
