@@ -2,28 +2,114 @@ const BaseWebhook = require('../core/BaseWebhook');
 const BaseA1ZapClient = require('../core/BaseA1ZapClient');
 const geminiService = require('../services/gemini-service');
 const imageStorage = require('../services/image-storage');
-const makeupArtistAgent = require('../agents/makeup-artist-agent');
+const ycPhotographerAgent = require('../agents/yc-photographer-agent');
 const webhookHelpers = require('../services/webhook-helpers');
 const conversationCache = require('../services/conversation-cache');
 const config = require('../config');
+const fs = require('fs');
+const path = require('path');
 
 /**
- * Makeup Artist webhook handler with multi-turn image editing support
- * Uses Gemini's image generation to apply cosmetic changes
+ * YC Photographer webhook handler with multi-turn image editing support
+ * Uses Gemini's image generation to place people in YC settings
  * 
  * Key Features:
  * - Multi-turn conversation support
  * - Image context tracking (from current message, history, or cache)
  * - Two modes: IMAGE mode (generate edited image) and TEXT mode (conversational)
+ * - Automatic style detection (YC sign or orange background)
  * - Automatic image storage and delivery
  */
-class MakeupArtistWebhook extends BaseWebhook {
+class YCPhotographerWebhook extends BaseWebhook {
   constructor() {
     // Create A1Zap client for this agent
-    const client = new BaseA1ZapClient(config.agents.makeupArtist);
+    const client = new BaseA1ZapClient(config.agents.ycPhotographer);
     
     // Initialize base webhook
-    super(makeupArtistAgent, client);
+    super(ycPhotographerAgent, client);
+    
+    // Reference image configuration
+    // Support both old and new environment variable names for backward compatibility
+    this.referenceImagesEnabled = (
+      process.env.YC_USE_REFERENCE_IMAGES === 'true' || 
+      process.env.YC_SEND_REFERENCE_IMAGES === 'true'
+    );
+    this.sendReferenceToUser = process.env.YC_SEND_REFERENCE_TO_USER !== 'false'; // Default: true
+    this.referenceImagesDir = path.join(__dirname, '..', 'reference-images');
+    
+    console.log(`🎨 Reference Images Config:`);
+    console.log(`   - Use in AI: ${this.referenceImagesEnabled}`);
+    console.log(`   - Send to user: ${this.sendReferenceToUser}`);
+  }
+  
+  /**
+   * Get reference image URL for a given style
+   * @param {string} style - 'sign' or 'orange'
+   * @returns {string|null} Public URL of reference image or null if not found
+   */
+  getReferenceImageUrl(style) {
+    if (!this.referenceImagesEnabled) {
+      return null;
+    }
+    
+    // Map style to filename
+    const referenceFiles = {
+      'sign': 'yc-sign-reference.jpg',
+      'orange': 'yc-orange-reference.jpg'
+    };
+    
+    const filename = referenceFiles[style];
+    if (!filename) {
+      return null;
+    }
+    
+    // Check if file exists
+    const filePath = path.join(this.referenceImagesDir, filename);
+    if (!fs.existsSync(filePath)) {
+      console.log(`⚠️  Reference image not found: ${filePath}`);
+      return null;
+    }
+    
+    // Generate public URL
+    const baseUrl = config.server.baseUrl || `http://localhost:${config.server.port}`;
+    return `${baseUrl}/reference-images/${filename}`;
+  }
+  
+  /**
+   * Send reference image for the detected style
+   * @param {string} chatId - Chat ID
+   * @param {string} style - 'sign' or 'orange'
+   * @returns {Promise<void>}
+   */
+  async sendReferenceImage(chatId, style) {
+    const referenceUrl = this.getReferenceImageUrl(style);
+    
+    if (!referenceUrl) {
+      console.log(`⚠️  No reference image available for style: ${style}`);
+      return;
+    }
+    
+    const styleNames = {
+      'sign': 'YC Sign Entrance',
+      'orange': 'YC Orange Background'
+    };
+    
+    const message = `📸 Here's what the ${styleNames[style]} looks like! I'll place you in this setting.`;
+    
+    console.log(`📤 Sending reference image: ${style} (${referenceUrl})`);
+    
+    try {
+      await this.client.sendMediaMessage(
+        chatId,
+        message,
+        referenceUrl,
+        { contentType: 'image/jpeg' }
+      );
+      console.log('✅ Reference image sent successfully');
+    } catch (error) {
+      console.error('❌ Failed to send reference image:', error.message);
+      // Don't throw - reference image is optional
+    }
   }
 
   /**
@@ -35,7 +121,7 @@ class MakeupArtistWebhook extends BaseWebhook {
   }
 
   /**
-   * Get history limit for makeup conversations (needs more context)
+   * Get history limit for YC photographer conversations (needs more context)
    * @override
    */
   getHistoryLimit() {
@@ -43,7 +129,7 @@ class MakeupArtistWebhook extends BaseWebhook {
   }
 
   /**
-   * Process Makeup Artist request
+   * Process YC Photographer request
    * @param {Object} data - Request data with conversation history
    * @returns {Promise<Object>} Result with response text and optional image
    */
@@ -61,11 +147,11 @@ class MakeupArtistWebhook extends BaseWebhook {
     // Determine effective image URL (current message, history, or cache)
     const { effectiveImageUrl, imageSource } = this.findEffectiveImage(imageUrl, conversation, chatId);
 
-    // Extract previous makeup request (from history or cache)
+    // Extract previous style request (from history or cache)
     const previousRequest = this.findPreviousRequest(conversation, chatId);
 
     if (previousRequest) {
-      console.log(`💄 Previous makeup request: "${previousRequest}"`);
+      console.log(`📸 Previous YC photo request: "${previousRequest}"`);
     }
 
     // Check if we have an image to work with
@@ -118,19 +204,40 @@ class MakeupArtistWebhook extends BaseWebhook {
   }
 
   /**
-   * Find previous makeup request from history or cache
+   * Find previous YC photo request from history or cache
    * @param {Array} conversation - Conversation history
    * @param {string} chatId - Chat ID
    * @returns {string|null} Previous request or null
    */
   findPreviousRequest(conversation, chatId) {
-    let previousRequest = webhookHelpers.extractPreviousMakeupRequest(conversation, 10);
+    // Extract YC photo-related requests from conversation
+    let previousRequest = null;
+    
+    if (conversation.length > 0) {
+      const recentMessages = conversation.slice(-10);
+      const ycRequests = recentMessages
+        .filter(msg => msg.role === 'user' && msg.content && msg.content.trim() !== '[Image]')
+        .map(msg => msg.content.trim())
+        .filter(content => {
+          const lowerContent = content.toLowerCase();
+          return lowerContent.includes('yc') || 
+                 lowerContent.includes('combinator') || 
+                 lowerContent.includes('sign') || 
+                 lowerContent.includes('orange') || 
+                 lowerContent.includes('background') ||
+                 content.length > 15;
+        });
+      
+      if (ycRequests.length > 0) {
+        previousRequest = ycRequests[ycRequests.length - 1];
+      }
+    }
 
     if (!previousRequest) {
       // Fall back to cache if history didn't provide context
       previousRequest = conversationCache.getRecentRequest(chatId, 5);
       if (previousRequest) {
-        console.log(`💄 Using previous request from cache (history unavailable)`);
+        console.log(`📸 Using previous request from cache (history unavailable)`);
       }
     }
 
@@ -138,28 +245,70 @@ class MakeupArtistWebhook extends BaseWebhook {
   }
 
   /**
-   * Process IMAGE mode - generate edited image with makeup
+   * Process IMAGE mode - generate edited image with YC setting
    * @param {string} effectiveImageUrl - Image URL to edit
    * @param {string} userMessage - User's message
    * @param {string|null} currentImageUrl - Image from current message (if any)
    * @param {Array} conversation - Conversation history
-   * @param {string|null} previousRequest - Previous makeup request
+   * @param {string|null} previousRequest - Previous YC photo request
    * @param {string} chatId - Chat ID
    * @returns {Promise<Object>} Result with image URL
    */
   async processImageMode(effectiveImageUrl, userMessage, currentImageUrl, conversation, previousRequest, chatId) {
-    console.log('Image available - generating edited image with Gemini...');
+    console.log('Image available - generating YC photo with Gemini...');
 
     const isFirstMessage = conversation.length === 0;
 
-    // Build prompt with context awareness
-    let prompt;
+    // Detect style for reference image
+    let detectedStyle;
     if (!currentImageUrl && effectiveImageUrl && previousRequest) {
-      // User is referring to a previous image and previous makeup style
-      prompt = `${previousRequest}\n\nApply this makeup style to the image. Keep your response brief.`;
-      console.log('📝 Using previous makeup request as context (no new image)');
+      detectedStyle = this.agent.detectStyle(previousRequest);
     } else {
-      prompt = this.agent.buildPrompt(userMessage, conversation, isFirstMessage);
+      detectedStyle = this.agent.detectStyle(userMessage || previousRequest || '');
+    }
+    
+    // Get reference image URL for AI generation (if enabled)
+    let referenceImageUrl = null;
+    if (this.referenceImagesEnabled) {
+      console.log(`🎨 Detected style: ${detectedStyle}`);
+      referenceImageUrl = this.getReferenceImageUrl(detectedStyle);
+      
+      if (referenceImageUrl) {
+        console.log(`🎨 Will use reference image in AI generation: ${referenceImageUrl}`);
+        
+        // Send reference image to user first (if enabled and not test mode)
+        if (this.sendReferenceToUser && !webhookHelpers.isTestChat(chatId)) {
+          console.log(`📤 Sending reference image to user as preview`);
+          await this.sendReferenceImage(chatId, detectedStyle);
+          
+          // Small delay to ensure reference image is sent first
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else if (!this.sendReferenceToUser) {
+          console.log(`⏭️  Skipping sending reference to user (YC_SEND_REFERENCE_TO_USER=false)`);
+        }
+      }
+    }
+    
+    // Build prompt with context awareness
+    // Include reference image context if using one
+    const willUseReferenceImage = !!referenceImageUrl;
+    let prompt;
+    
+    if (!currentImageUrl && effectiveImageUrl && previousRequest) {
+      // User is referring to a previous image and previous style
+      prompt = `${this.agent.getStylePrompt(detectedStyle, willUseReferenceImage)}\n\nKeep your response brief and enthusiastic.`;
+      console.log('📝 Using previous YC style as context (no new image)');
+    } else {
+      // Build initial prompt
+      const basePrompt = this.agent.buildPrompt(userMessage, conversation, isFirstMessage);
+      
+      // If using reference image, replace the style prompt section with reference-aware version
+      if (willUseReferenceImage) {
+        const stylePrompt = this.agent.getStylePrompt(detectedStyle, willUseReferenceImage);
+        prompt = stylePrompt + '\n\nKeep your text response brief and enthusiastic - describe what you\'ve done in 1-2 sentences.';
+      } else {
+        prompt = basePrompt;
+      }
     }
 
     console.log('Generated prompt for image editing:');
@@ -167,10 +316,16 @@ class MakeupArtistWebhook extends BaseWebhook {
     console.log(prompt);
     console.log('---');
 
+    // Generate edited image using Gemini (with optional reference image)
+    const generationOptions = {
+      ...this.agent.getGenerationOptions(),
+      referenceImageUrl: referenceImageUrl // Pass reference image to AI
+    };
+
     const result = await geminiService.generateEditedImage(
       effectiveImageUrl,
       prompt,
-      this.agent.getGenerationOptions()
+      generationOptions
     );
 
     console.log('Generated response:', {
@@ -180,7 +335,7 @@ class MakeupArtistWebhook extends BaseWebhook {
     });
 
     // Prepare response text
-    let responseText = result.text || "I've applied your requested makeup changes! ✨";
+    let responseText = result.text || "📸 Here's your YC photo! Looking great!";
 
     // If image was generated, save it and send as media message
     if (result.imageData) {
@@ -189,7 +344,7 @@ class MakeupArtistWebhook extends BaseWebhook {
         const filename = await imageStorage.saveBase64Image(
           result.imageData,
           result.mimeType,
-          'makeup'
+          'yc-photographer'
         );
 
         // Generate public URL
@@ -330,7 +485,7 @@ class MakeupArtistWebhook extends BaseWebhook {
     // Enhanced system instruction if images were in history
     let systemInstruction = this.agent.getSystemPrompt();
     if (hasRecentImages) {
-      systemInstruction += `\n\nIMPORTANT: The user has shared images in this conversation, but the current message doesn't have an image. If they're asking you to apply makeup or make changes, politely let them know you need them to share the specific image they want you to work on.`;
+      systemInstruction += `\n\nIMPORTANT: The user has shared images in this conversation, but the current message doesn't have an image. If they're asking you to create a YC photo, politely let them know you need them to share the specific image they want you to work on.`;
     }
 
     // Generate conversational response using Gemini
@@ -369,5 +524,6 @@ class MakeupArtistWebhook extends BaseWebhook {
 }
 
 // Create and export singleton webhook handler
-const makeupArtistWebhook = new MakeupArtistWebhook();
-module.exports = makeupArtistWebhook.createHandler();
+const ycPhotographerWebhook = new YCPhotographerWebhook();
+module.exports = ycPhotographerWebhook.createHandler();
+

@@ -139,6 +139,7 @@ class GeminiService {
    * @param {string|null} imageUrl - URL of the image to edit (null for text-to-image generation)
    * @param {string} prompt - Text prompt describing the desired changes or image
    * @param {Object} options - Generation options
+   * @param {string|null} options.referenceImageUrl - Optional reference image URL for style/composition guidance
    * @returns {Promise<{text: string|null, imageData: string|null, mimeType: string|null}>} Generated response with text and/or image
    */
   async generateEditedImage(imageUrl, prompt, options = {}) {
@@ -153,11 +154,35 @@ class GeminiService {
         topP: options.topP || 0.95
       };
 
+      const axios = require('axios');
       let parts = [];
 
-      // If image URL provided, fetch and add to request (for image editing)
+      // If reference image provided, add it FIRST for style/composition guidance
+      if (options.referenceImageUrl) {
+        console.log(`🎨 Loading reference image: ${options.referenceImageUrl}`);
+        try {
+          const refImageResponse = await axios.get(options.referenceImageUrl, {
+            responseType: 'arraybuffer'
+          });
+
+          const refImageData = Buffer.from(refImageResponse.data).toString('base64');
+          const refMimeType = refImageResponse.headers['content-type'] || 'image/jpeg';
+
+          parts.push({
+            inlineData: {
+              data: refImageData,
+              mimeType: refMimeType
+            }
+          });
+          console.log(`✅ Reference image loaded successfully`);
+        } catch (refError) {
+          console.warn(`⚠️  Failed to load reference image, continuing without it:`, refError.message);
+          // Continue without reference image rather than failing entirely
+        }
+      }
+
+      // If user image URL provided, fetch and add to request (for image editing)
       if (imageUrl) {
-        const axios = require('axios');
         const imageResponse = await axios.get(imageUrl, {
           responseType: 'arraybuffer'
         });
@@ -175,6 +200,18 @@ class GeminiService {
 
       // Add text prompt
       parts.push({ text: prompt });
+
+      // Debug logging
+      console.log(`\n🔍 Gemini Input Summary:`);
+      console.log(`   Total parts: ${parts.length}`);
+      parts.forEach((part, idx) => {
+        if (part.inlineData) {
+          console.log(`   Part ${idx + 1}: Image (${part.inlineData.mimeType}, ${part.inlineData.data.length} chars)`);
+        } else if (part.text) {
+          console.log(`   Part ${idx + 1}: Text (${part.text.substring(0, 100)}...)`);
+        }
+      });
+      console.log('');
 
       // Generate content
       const result = await model.generateContent({

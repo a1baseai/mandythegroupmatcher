@@ -73,6 +73,7 @@ In A1Zap app → Select your agent → Set webhook URL:
 - For generic file operations: `https://your-server.com/webhook/claude`
 - For Brandon Eats data: `https://your-server.com/webhook/brandoneats`
 - For makeup artist (image generation): `https://your-server.com/webhook/makeup-artist`
+- For YC photographer (image generation): `https://your-server.com/webhook/yc-photographer`
 
 ### 5. Test It! 🎉
 
@@ -108,7 +109,7 @@ module.exports = {
 };
 ```
 
-**📖 See `AGENT_PERSONALITY_GUIDE.md` for detailed examples and instructions.**
+**📖 See `docs/AGENT_PERSONALITY_GUIDE.md` for detailed examples and instructions.**
 
 ---
 
@@ -171,8 +172,8 @@ Specialized for restaurant/food data:
 - Custom prompts for food industry queries
 
 **Agent Config:** `agents/brandoneats-agent.js`  
-**📖 See `INTELLIGENT_FILTERING.md` for details on the smart triage and filtering system.**  
-**📖 See `ALTERNATIVE_SUGGESTIONS.md` for details on contextual alternative suggestions.**
+**📖 See `docs/INTELLIGENT_FILTERING.md` for details on the smart triage and filtering system.**  
+**📖 See `docs/ALTERNATIVE_SUGGESTIONS.md` for details on contextual alternative suggestions.**
 
 ### 3. Makeup Artist 💄 (`/webhook/makeup-artist`)
 AI makeup artist with image generation capabilities:
@@ -183,43 +184,67 @@ AI makeup artist with image generation capabilities:
 - Automatic image storage and delivery
 
 **Agent Config:** `agents/makeup-artist-agent.js`  
-**📖 See `MAKEUP_ARTIST_AGENT.md` for complete documentation and usage examples.**
+**📖 See `docs/MAKEUP_ARTIST_AGENT.md` for complete documentation and usage examples.**
+
+### 4. YC Photographer 📸 (`/webhook/yc-photographer`)
+Yash the YC Photographer - Places people in iconic Y Combinator settings:
+- Transform photos by placing subjects in front of the **YC sign** or **orange background**
+- **Automatic style detection** based on keywords (sign, entrance, orange, background, etc.)
+- **Two signature styles**: YC office entrance or iconic orange studio background with foam panels
+- **Multi-turn conversations** - apply same style to multiple photos
+- Professional photographer personality with enthusiastic responses
+- Automatic image storage and delivery
+
+**Agent Config:** `agents/yc-photographer-agent.js`  
+**📖 See `docs/YC_PHOTOGRAPHER_AGENT.md` for complete documentation and usage examples.**
 
 ---
 
 ## 🛠️ Project Structure
 
 ```
-agents/
-  ├── claude-docubot-agent.js      # Generic file agent config
-  ├── brandoneats-agent.js         # Brandon Eats agent config
-  └── makeup-artist-agent.js       # Makeup Artist agent config
+core/                              # 🆕 Base classes and abstractions
+  ├── BaseAgent.js                 # Abstract agent class
+  ├── BaseWebhook.js               # Abstract webhook handler
+  ├── BaseA1ZapClient.js           # Unified A1Zap client
+  └── AgentRegistry.js             # Central agent registry
 
-webhooks/
-  ├── claude-webhook.js            # Generic file handler
-  ├── brandoneats-webhook.js       # Brandon Eats handler
-  └── makeup-artist-webhook.js     # Makeup Artist handler
+agents/                            # Agent configurations
+  ├── claude-docubot-agent.js      # Claude DocuBot (extends BaseAgent)
+  ├── brandoneats-agent.js         # Brandon Eats (extends BaseAgent)
+  ├── makeup-artist-agent.js       # Makeup Artist (extends BaseAgent)
+  └── yc-photographer-agent.js     # YC Photographer (extends BaseAgent)
 
-services/
+webhooks/                          # Webhook handlers
+  ├── claude-webhook.js            # Claude handler (extends BaseWebhook)
+  ├── brandoneats-webhook.js       # Brandon Eats handler (extends BaseWebhook)
+  ├── makeup-artist-webhook.js     # Makeup Artist handler (extends BaseWebhook)
+  └── yc-photographer-webhook.js   # YC Photographer handler (extends BaseWebhook)
+
+services/                          # Services and utilities
   ├── claude-service.js            # Claude API integration
   ├── gemini-service.js            # Gemini API integration (+ image generation)
-  ├── a1zap-client.js              # A1Zap messaging client
-  ├── brandoneats-client.js        # Brandon Eats specialized client
   ├── file-upload.js               # File upload utility
   ├── file-registry.js             # File storage manager
   ├── image-storage.js             # Image storage utilities
   ├── webhook-helpers.js           # Shared webhook utilities
+  ├── conversation-cache.js        # Conversation cache
   └── social-link-extractor.js     # Social media detection
+
+docs/                              # 🆕 Documentation
+  ├── AGENT_PERSONALITY_GUIDE.md   # Agent customization guide
+  ├── INTELLIGENT_FILTERING.md     # Smart filtering system
+  ├── ALTERNATIVE_SUGGESTIONS.md   # Alternative suggestions
+  ├── MAKEUP_ARTIST_AGENT.md       # Makeup artist docs
+  ├── RICH_CONTENT_GUIDE.md        # Rich content guide
+  ├── SETUP.md                     # Setup and deployment
+  └── [23 more documentation files]
 
 examples/                          # Example scripts
   ├── upload.js                    # File upload example
   └── social-shares.js             # Rich content example
 
-tests/                             # Test scripts
-  ├── test-social-links.js         # Social link extraction tests
-  ├── test-rich-content.js         # Rich content tests
-  ├── test-social-shares-quick.js  # Quick social share test
-  └── test-makeup-artist.js        # Makeup Artist tests
+tests/                             # Test scripts (24 files)
 
 files/                             # Uploaded files directory
 temp-images/                       # Generated images storage
@@ -285,7 +310,7 @@ const richContentBlocks = [
 await brandonEatsClient.sendMessage(chatId, 'Check out these videos!', richContentBlocks);
 ```
 
-**📖 See `RICH_CONTENT_GUIDE.md` for more rich content types.**
+**📖 See `docs/RICH_CONTENT_GUIDE.md` for more rich content types.**
 
 ---
 
@@ -388,11 +413,11 @@ Built-in duplicate message detection prevents double-processing:
 
 ## 📚 Documentation
 
-- `AGENT_PERSONALITY_GUIDE.md` - Customize agent personality and behavior
-- `INTELLIGENT_FILTERING.md` - Smart triage and social link filtering system
-- `ALTERNATIVE_SUGGESTIONS.md` - Contextual alternative suggestions when exact matches aren't found
-- `RICH_CONTENT_GUIDE.md` - Rich content formatting and social embeds
-- `SETUP.md` - Complete setup and deployment guide
+- `docs/AGENT_PERSONALITY_GUIDE.md` - Customize agent personality and behavior
+- `docs/INTELLIGENT_FILTERING.md` - Smart triage and social link filtering system
+- `docs/ALTERNATIVE_SUGGESTIONS.md` - Contextual alternative suggestions when exact matches aren't found
+- `docs/RICH_CONTENT_GUIDE.md` - Rich content formatting and social embeds
+- `docs/SETUP.md` - Complete setup and deployment guide
 
 ---
 

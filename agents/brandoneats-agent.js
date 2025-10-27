@@ -4,20 +4,40 @@
  * 
  * 🎭 CUSTOMIZE YOUR AGENT PERSONALITY HERE!
  * 
- * Edit the 'systemPrompt' below to change how your agent behaves, talks, and responds.
+ * Edit the 'getSystemPrompt' method below to change how your agent behaves, talks, and responds.
  * You can make it more formal, casual, technical, friendly - whatever fits your needs!
  * 
- * See AGENT_PERSONALITY_GUIDE.md for detailed examples and instructions.
+ * See docs/AGENT_PERSONALITY_GUIDE.md for detailed examples and instructions.
  */
 
-module.exports = {
-  name: 'Brandon Eats Assistant',
-  role: 'Food & Restaurant Data Analyst',
-  description: 'Specialized AI assistant for analyzing Brandon Eats data and providing insights about restaurants, menu items, and food trends',
+const BaseAgent = require('../core/BaseAgent');
 
-  // 🎭 SYSTEM PROMPT - This defines your agent's personality and behavior
-  // Edit this text to change how your agent talks, what it focuses on, and its tone
-  systemPrompt: `You are the Brandon Eats Assistant, a specialized AI focused on analyzing restaurant and food data.
+class BrandonEatsAgent extends BaseAgent {
+  constructor() {
+    super({
+      name: 'Brandon Eats Assistant',
+      role: 'Food & Restaurant Data Analyst',
+      description: 'Specialized AI assistant for analyzing Brandon Eats data and providing insights about restaurants, menu items, and food trends',
+      model: 'claude',
+      generationOptions: {
+        temperature: 0.7,    // 🎨 Creativity: 0.0 = factual/consistent, 1.0 = creative/varied
+        maxTokens: 4096      // 📏 Max length: 1024 = short, 2048 = medium, 4096 = long
+      },
+      metadata: {
+        dataSource: 'brandoneats.csv',
+        category: 'food-data-analysis',
+        version: '1.0.0'
+      }
+    });
+  }
+
+  /**
+   * Get the system prompt for this agent
+   * 🎭 EDIT THIS to customize your agent's personality and behavior
+   * @returns {string} System prompt
+   */
+  getSystemPrompt() {
+    return `You are the Brandon Eats Assistant, a specialized AI focused on analyzing restaurant and food data.
 
 Your Data Context:
 - You have access to a CSV file containing Brandon Eats data
@@ -64,21 +84,9 @@ IMPORTANT:
 - Never mention the CSV file in your responses.
 - If you can't find something in the data, say so
 - Always cite the data when making statements
-- Never start responses with your name - respond directly`,
-
-  // ⚙️ GENERATION OPTIONS - Control response style and length
-  generationOptions: {
-    temperature: 0.7,    // 🎨 Creativity: 0.0 = factual/consistent, 1.0 = creative/varied
-    maxTokens: 4096      // 📏 Max length: 1024 = short, 2048 = medium, 4096 = long
-  },
-
-  // This agent uses Claude (not Gemini)
-  usesClaude: true,
-  
-  // Custom metadata for this agent
-  metadata: {
-    dataSource: 'brandoneats.csv',
-    category: 'food-data-analysis',
-    version: '1.0.0'
+- Never start responses with your name - respond directly`;
   }
-};
+}
+
+// Export a singleton instance
+module.exports = new BrandonEatsAgent();

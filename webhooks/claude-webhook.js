@@ -1,44 +1,30 @@
+const BaseWebhook = require('../core/BaseWebhook');
+const BaseA1ZapClient = require('../core/BaseA1ZapClient');
 const claudeService = require('../services/claude-service');
-const a1zapClient = require('../services/a1zap-client');
 const claudeDocubotAgent = require('../agents/claude-docubot-agent');
 const fileRegistry = require('../services/file-registry');
-const webhookHelpers = require('../services/webhook-helpers');
+const config = require('../config');
 
 /**
  * Claude DocuBot webhook handler with file reference support
- * Uses the claude-docubot-agent configuration
+ * Uses Claude with Files API to provide document-aware responses
  */
-async function claudeWebhookHandler(req, res) {
-  try {
-    console.log('\n=== Claude Webhook Received ===');
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-
-    // Validate webhook payload
-    const validation = webhookHelpers.validateWebhookPayload(req.body);
-    if (!validation.valid) {
-      return res.status(400).json({
-        success: false,
-        error: validation.error
-      });
-    }
-
-    const { chatId, agentId, messageId, userMessage } = validation.data;
+class ClaudeWebhook extends BaseWebhook {
+  constructor() {
+    // Create A1Zap client for this agent
+    const client = new BaseA1ZapClient(config.agents.claudeDocubot);
     
-    // Check for duplicate message
-    if (webhookHelpers.isDuplicateMessage(messageId)) {
-      console.log(`⚠️  Duplicate message detected: ${messageId} - skipping processing`);
-      return res.json({
-        success: true,
-        skipped: true,
-        reason: 'duplicate_message',
-        messageId: messageId
-      });
-    }
+    // Initialize base webhook
+    super(claudeDocubotAgent, client);
+  }
 
-    // Mark message as processed IMMEDIATELY to prevent race conditions
-    webhookHelpers.markMessageProcessed(messageId);
-
-    console.log(`Processing message from chat ${chatId}: "${userMessage}"`);
+  /**
+   * Process Claude DocuBot request
+   * @param {Object} data - Request data with conversation history
+   * @returns {Promise<Object>} Result with response text
+   */
+  async processRequest(data) {
+    const { userMessage, conversation } = data;
 
     // Check if base file is set for claude-docubot agent
     const baseFileId = fileRegistry.getBaseFile('claude-docubot');
@@ -49,34 +35,26 @@ async function claudeWebhookHandler(req, res) {
       console.warn('⚠️  No base file set for Claude DocuBot - responses will not have document context');
     }
 
-    // Fetch and process message history (last 10 messages)
-    const conversation = await webhookHelpers.fetchAndProcessHistory(
-      a1zapClient,
-      chatId,
-      agentId,
-      10
-    );
-
     // Add the current message to conversation
-    conversation.push({ role: 'user', content: String(userMessage) });
+    const fullConversation = [...conversation, { role: 'user', content: String(userMessage) }];
 
     // Generate response using Claude with file context
     console.log('Generating response with Claude...');
     let response;
-    
-    if (conversation.length > 1) {
+
+    if (fullConversation.length > 1) {
       // Use chat with history
-      response = await claudeService.chatWithBaseFile(conversation, {
-        ...claudeDocubotAgent.generationOptions,
-        systemPrompt: claudeDocubotAgent.systemPrompt,
+      response = await claudeService.chatWithBaseFile(fullConversation, {
+        ...this.agent.getGenerationOptions(),
+        systemPrompt: this.agent.getSystemPrompt(),
         agentName: 'claude-docubot'
       });
     } else {
       // First message - use generateWithBaseFile
       response = await claudeService.generateWithBaseFile(
-        `${claudeDocubotAgent.systemPrompt}\n\nUser: ${userMessage}\n\nAssistant:`,
+        `${this.agent.getSystemPrompt()}\n\nUser: ${userMessage}\n\nAssistant:`,
         {
-          ...claudeDocubotAgent.generationOptions,
+          ...this.agent.getGenerationOptions(),
           agentName: 'claude-docubot'
         }
       );
@@ -84,28 +62,14 @@ async function claudeWebhookHandler(req, res) {
 
     console.log('Generated response:', response);
 
-    // Send response back to A1Zap (skip for test chats)
-    const sendResult = await webhookHelpers.sendResponse(a1zapClient, chatId, response);
-
-    // Return success
-    res.json({
-      success: true,
-      agent: claudeDocubotAgent.name,
-      response: response,
-      baseFile: baseFileId ? fileRegistry.getFileById(baseFileId)?.filename : null,
-      testMode: webhookHelpers.isTestChat(chatId)
-    });
-
-  } catch (error) {
-    console.error('\n=== Claude Webhook Error ===');
-    console.error('Error:', error.message);
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    return {
+      response,
+      baseFile: baseFileId ? fileRegistry.getFileById(baseFileId)?.filename : null
+    };
   }
 }
 
-module.exports = claudeWebhookHandler;
+// Create and export singleton webhook handler
+const claudeWebhook = new ClaudeWebhook();
+module.exports = claudeWebhook.createHandler();
 

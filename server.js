@@ -1,12 +1,43 @@
+/**
+ * Multi-Agent AI System Server
+ * 
+ * Clean architecture with base classes for extensibility:
+ * - BaseAgent: Abstract agent class
+ * - BaseWebhook: Abstract webhook handler
+ * - BaseA1ZapClient: Unified messaging client
+ * - AgentRegistry: Central agent management
+ */
+
 // Load configuration
 const config = require('./config');
 const express = require('express');
 const bodyParser = require('body-parser');
+
+// Core architecture
+const AgentRegistry = require('./core/AgentRegistry');
+
+// Agent configurations
+const claudeDocubotAgent = require('./agents/claude-docubot-agent');
+const brandonEatsAgent = require('./agents/brandoneats-agent');
+const makeupArtistAgent = require('./agents/makeup-artist-agent');
+const ycPhotographerAgent = require('./agents/yc-photographer-agent');
+
+// Webhook handlers
 const claudeWebhookHandler = require('./webhooks/claude-webhook');
 const brandonEatsWebhookHandler = require('./webhooks/brandoneats-webhook');
 const makeupArtistWebhookHandler = require('./webhooks/makeup-artist-webhook');
+const ycPhotographerWebhookHandler = require('./webhooks/yc-photographer-webhook');
+
+// Services
 const { getBaseFileInfo, getAllAgentFiles, listUploadedFiles } = require('./services/file-upload');
 const imageStorage = require('./services/image-storage');
+
+// Initialize agent registry
+const agentRegistry = new AgentRegistry();
+agentRegistry.register('claude-docubot', claudeDocubotAgent, claudeWebhookHandler);
+agentRegistry.register('brandoneats', brandonEatsAgent, brandonEatsWebhookHandler);
+agentRegistry.register('makeup-artist', makeupArtistAgent, makeupArtistWebhookHandler);
+agentRegistry.register('yc-photographer', ycPhotographerAgent, ycPhotographerWebhookHandler);
 
 const app = express();
 
@@ -16,6 +47,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Static file serving for generated images
 app.use('/temp-images', express.static(imageStorage.getTempDirPath()));
+
+// Static file serving for reference images (YC settings, etc.)
+app.use('/reference-images', express.static('./reference-images'));
 
 // Request logging
 app.use((req, res, next) => {
@@ -39,12 +73,14 @@ app.get('/health', (req, res) => {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    service: 'File-Based AI Agent (Multi-Model)',
-    version: '2.0.0',
+    service: 'Multi-Agent AI System',
+    version: '3.0.0',
+    architecture: 'Clean Architecture with Base Classes',
+    agents: agentRegistry.listAgents(),
     endpoints: {
       health: 'GET /health',
       claudeDocubot: 'POST /webhook/claude',
-      brandonEatsWebhook: 'POST /webhook/brandoneats',
+      brandonEats: 'POST /webhook/brandoneats',
       makeupArtist: 'POST /webhook/makeup-artist',
       filesBaseAll: 'GET /files/base',
       filesBaseAgent: 'GET /files/base/:agent',
@@ -62,6 +98,9 @@ app.post('/webhook/brandoneats', brandonEatsWebhookHandler);
 
 // Makeup Artist webhook endpoint (with Gemini image generation)
 app.post('/webhook/makeup-artist', makeupArtistWebhookHandler);
+
+// YC Photographer webhook endpoint (with Gemini image generation)
+app.post('/webhook/yc-photographer', ycPhotographerWebhookHandler);
 
 // File management endpoints
 app.get('/files/base', (req, res) => {
@@ -121,22 +160,69 @@ app.get('/files/list', (req, res) => {
   }
 });
 
+// Validate configuration before starting server
+console.log('\n🔍 Validating configuration...\n');
+
+// Validate AI services
+const geminiValidation = config.validation.validateAIService('Gemini', config.gemini);
+const claudeValidation = config.validation.validateAIService('Claude', config.claude);
+
+// Validate agents
+const agentValidations = {};
+for (const [agentName, agentConfig] of Object.entries(config.agents)) {
+  agentValidations[agentName] = config.validation.validateAgent(agentName, agentConfig);
+}
+
+// Collect all errors and warnings
+let allErrors = [...geminiValidation.errors, ...claudeValidation.errors];
+let allWarnings = [...geminiValidation.warnings, ...claudeValidation.warnings];
+
+for (const [agentName, validation] of Object.entries(agentValidations)) {
+  allErrors.push(...validation.errors);
+  allWarnings.push(...validation.warnings);
+}
+
+// Display warnings
+if (allWarnings.length > 0) {
+  console.log('⚠️  Configuration Warnings:');
+  allWarnings.forEach(w => console.log(`  ${w}`));
+  console.log('');
+}
+
+// Display errors
+if (allErrors.length > 0) {
+  console.log('❌ Configuration Errors:');
+  allErrors.forEach(e => console.log(`  ${e}`));
+  console.log('');
+  console.log('💡 To fix these errors:');
+  console.log('  1. Create a .env file in the project root');
+  console.log('  2. Add the required API keys and agent IDs');
+  console.log('  3. See .env.example for a template\n');
+  console.log('⚠️  The server will start, but agents with errors may not work!\n');
+}
+
 // Start server
 const PORT = config.server.port;
 // Bind to 0.0.0.0 in production/Railway, localhost for local dev
 const HOST = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`\n🚀 File-Based AI Agent running on http://${HOST}:${PORT}`);
-  console.log(`\nWebhook Endpoints:`);
-  console.log(`  POST /webhook/claude        - Claude DocuBot (generic file reference agent)`);
-  console.log(`  POST /webhook/brandoneats   - Brandon Eats data analyst (specialized)`);
-  console.log(`  POST /webhook/makeup-artist - Makeup Artist with Gemini image generation`);
-  console.log(`  GET  /health                - Health check`);
-  console.log(`  GET  /files/base            - Get base files for all agents`);
-  console.log(`  GET  /files/base/:agent     - Get base file for specific agent`);
-  console.log(`  GET  /files/list            - List all uploaded files`);
-  console.log(`  GET  /temp-images/:filename - Generated images\n`);
+  console.log(`\n🚀 Multi-Agent AI System running on http://${HOST}:${PORT}`);
+  console.log(`   Version: 3.0.0 (Clean Architecture)`);
+  
+  // Print agent registry summary
+  agentRegistry.printSummary();
+  
+  console.log(`Webhook Endpoints:`);
+  console.log(`  POST /webhook/claude          - Claude DocuBot (file-aware agent)`);
+  console.log(`  POST /webhook/brandoneats     - Brandon Eats (data analyst)`);
+  console.log(`  POST /webhook/makeup-artist   - Makeup Artist (image generation)`);
+  console.log(`  POST /webhook/yc-photographer - YC Photographer (image generation)`);
+  console.log(`  GET  /health                  - Health check`);
+  console.log(`  GET  /files/base              - Get base files for all agents`);
+  console.log(`  GET  /files/base/:agent       - Get base file for specific agent`);
+  console.log(`  GET  /files/list              - List all uploaded files`);
+  console.log(`  GET  /temp-images/:filename   - Generated images\n`);
   console.log(`Configuration:`);
   console.log(`  Gemini API: ${config.gemini.apiKey.includes('your_') ? '❌ Not configured' : '✅ Configured'}`);
   console.log(`  Claude API: ${config.claude.apiKey.includes('your_') ? '❌ Not configured' : '✅ Configured'}`);

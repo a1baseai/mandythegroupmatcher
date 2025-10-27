@@ -1,7 +1,7 @@
 /**
  * Conversation Cache Service
  * 
- * Stores recent images and makeup requests per chat to handle cases where:
+ * Stores recent images, requests, and responses per chat to handle cases where:
  * 1. Message history API is unavailable or slow
  * 2. Users send images after text requests
  * 3. Users reference previous images/styles
@@ -9,12 +9,13 @@
  * This provides a fallback when the A1Zap history API fails or doesn't include media.
  */
 
-// In-memory cache: chatId -> { images: [], requests: [] }
+// In-memory cache: chatId -> { images: [], requests: [], responses: [] }
 const conversationCache = new Map();
 
 // Cache settings
 const MAX_IMAGES_PER_CHAT = 5;  // Store last 5 images
 const MAX_REQUESTS_PER_CHAT = 10;  // Store last 10 makeup requests
+const MAX_RESPONSES_PER_CHAT = 10;  // Store last 10 bot responses
 const CACHE_EXPIRY_MS = 30 * 60 * 1000;  // 30 minutes
 
 /**
@@ -33,13 +34,14 @@ setInterval(() => {
 /**
  * Get or create cache for a chat
  * @param {string} chatId - The chat ID
- * @returns {Object} - Cache object with images and requests arrays
+ * @returns {Object} - Cache object with images, requests, and responses arrays
  */
 function getOrCreateCache(chatId) {
   if (!conversationCache.has(chatId)) {
     conversationCache.set(chatId, {
       images: [],
       requests: [],
+      responses: [],
       lastActivity: Date.now()
     });
   }
@@ -109,6 +111,34 @@ function storeRequest(chatId, request) {
 }
 
 /**
+ * Store a bot response in the cache
+ * @param {string} chatId - The chat ID
+ * @param {string} response - The bot's response text
+ */
+function storeResponse(chatId, response) {
+  const cache = getOrCreateCache(chatId);
+  
+  // Filter out empty responses
+  if (!response || response.trim().length === 0) {
+    return;
+  }
+  
+  cache.responses.push({
+    text: response,
+    timestamp: Date.now()
+  });
+  
+  // Keep only the last N responses
+  if (cache.responses.length > MAX_RESPONSES_PER_CHAT) {
+    cache.responses.shift();
+  }
+  
+  cache.lastActivity = Date.now();
+  
+  console.log(`💾 Cached bot response for chat ${chatId}: "${response.substring(0, 50)}..."`);
+}
+
+/**
  * Get the most recent image from cache
  * @param {string} chatId - The chat ID
  * @param {number} lookbackLimit - How many images to consider (default: 5)
@@ -153,19 +183,20 @@ function getRecentRequest(chatId, lookbackLimit = 5) {
 }
 
 /**
- * Get all recent images and requests for a chat
+ * Get all recent images, requests, and responses for a chat
  * @param {string} chatId - The chat ID
- * @returns {Object} - { images: [], requests: [] }
+ * @returns {Object} - { images: [], requests: [], responses: [] }
  */
 function getChatContext(chatId) {
   const cache = conversationCache.get(chatId);
   if (!cache) {
-    return { images: [], requests: [] };
+    return { images: [], requests: [], responses: [] };
   }
   
   return {
     images: [...cache.images],
-    requests: [...cache.requests]
+    requests: [...cache.requests],
+    responses: [...cache.responses]
   };
 }
 
@@ -202,6 +233,7 @@ function getCacheStats() {
 module.exports = {
   storeImage,
   storeRequest,
+  storeResponse,
   getRecentImage,
   getRecentRequest,
   getChatContext,

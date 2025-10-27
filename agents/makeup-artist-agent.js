@@ -1,16 +1,39 @@
 /**
  * Makeup Artist Agent Configuration
- * Uses Gemini's image generation (Nano Banana) to apply cosmetic changes to uploaded images
+ * Uses Gemini's image generation to apply cosmetic changes to uploaded images
  * Supports multi-turn conversations for iterative refinement
+ * 
+ * 🎭 CUSTOMIZE YOUR AGENT PERSONALITY HERE!
+ * 
+ * Edit the 'getSystemPrompt' method below to change how your agent behaves.
+ * See docs/AGENT_PERSONALITY_GUIDE.md for detailed examples and instructions.
  */
 
-module.exports = {
-  name: 'Makeup Artist',
-  role: 'Professional Makeup Artist & Beauty Consultant',
-  description: 'AI makeup artist that applies cosmetic changes to images using advanced image editing',
+const BaseAgent = require('../core/BaseAgent');
 
-  // System prompt for makeup artistry
-  systemPrompt: `You are a Professional Makeup Artist and Beauty Consultant with expertise in cosmetic application and enhancement.
+class MakeupArtistAgent extends BaseAgent {
+  constructor() {
+    super({
+      name: 'Makeup Artist',
+      role: 'Professional Makeup Artist & Beauty Consultant',
+      description: 'AI makeup artist that applies cosmetic changes to images using advanced image editing',
+      model: 'gemini',
+      generationOptions: {
+        temperature: 0.7,    // Balanced creativity for makeup artistry
+        maxOutputTokens: 300, // Concise responses
+        topP: 0.95,
+        model: 'gemini-2.5-flash-image' // Gemini's image generation model
+      }
+    });
+  }
+
+  /**
+   * Get the system prompt for this agent
+   * 🎭 EDIT THIS to customize your agent's personality and behavior
+   * @returns {string} System prompt
+   */
+  getSystemPrompt() {
+    return `You are a Professional Makeup Artist and Beauty Consultant with expertise in cosmetic application and enhancement.
 
 Your Purpose:
 - Help users enhance their photos with makeup and cosmetic changes
@@ -48,18 +71,18 @@ Examples of requests you might receive:
 - "Can you add some highlighter and make my skin glow?"
 - "Try a smokey eye with nude lips"
 
-Remember: You're creating beautiful, confidence-boosting looks!`,
+Remember: You're creating beautiful, confidence-boosting looks!`;
+  }
 
-  // Generation options optimized for image editing
-  generationOptions: {
-    temperature: 0.7,    // Balanced creativity for makeup artistry
-    maxOutputTokens: 300, // Concise responses
-    topP: 0.95,
-    model: 'gemini-2.5-flash-image' // Gemini's image generation model
-  },
-
-  // Helper function to build prompts with conversation context
-  buildPrompt: (userMessage, conversation = [], isFirstMessage = false) => {
+  /**
+   * Build a prompt with conversation context for makeup editing
+   * Handles multi-turn conversations and references to previous requests
+   * @param {string} userMessage - Current user message
+   * @param {Array} conversation - Conversation history
+   * @param {boolean} isFirstMessage - Whether this is the first message
+   * @returns {string} Contextual prompt for image generation
+   */
+  buildPrompt(userMessage, conversation = [], isFirstMessage = false) {
     // Normalize the user message - treat "[Image]" as empty since it's just a placeholder
     const normalizedMessage = userMessage && userMessage.trim() === '[Image]' ? '' : userMessage;
     
@@ -144,5 +167,7 @@ Please analyze the image and apply the requested makeup changes. Keep your text 
 
 Apply this change to the image. Keep your response brief.`;
   }
-};
+}
 
+// Export a singleton instance
+module.exports = new MakeupArtistAgent();

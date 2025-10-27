@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 module.exports = {
-  // Gemini AI Configuration
+  // AI Model Configurations
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || 'your_gemini_api_key_here',
     defaultModel: 'gemini-2.5-flash',
@@ -10,28 +10,6 @@ module.exports = {
     maxOutputTokens: 65565
   },
 
-  // A1Zap API Configuration (General)
-  a1zap: {
-    apiKey: process.env.A1ZAP_API_KEY || 'your_a1zap_api_key_here',
-    agentId: process.env.A1ZAP_AGENT_ID || 'your_agent_id_here',
-    apiUrl: 'https://api.a1zap.com/v1/messages/individual'
-  },
-
-  // Brandon Eats Specific A1Zap Configuration
-  brandonEats: {
-    apiKey: process.env.BRANDONEATS_API_KEY || 'oWcnoLaWyz6Essuc3doElcHCSSfgsJ',
-    agentId: process.env.BRANDONEATS_AGENT_ID || 'j972wdq9j43c6wda1gga784gxn7qwpzs',
-    apiUrl: process.env.BRANDONEATS_API_URL || 'https://api.a1zap.com/v1/messages/individual'
-  },
-
-  // Makeup Artist Specific A1Zap Configuration
-  makeupArtist: {
-    apiKey: process.env.MAKEUP_ARTIST_API_KEY || process.env.A1ZAP_API_KEY || 'your_makeup_artist_api_key_here',
-    agentId: process.env.MAKEUP_ARTIST_AGENT_ID || 'j974khr39n4esba376mjawp2jh7t69f3',
-    apiUrl: process.env.MAKEUP_ARTIST_API_URL || 'https://api.a1zap.com/v1/messages/individual'
-  },
-
-  // Claude AI Configuration
   claude: {
     apiKey: process.env.CLAUDE_API_KEY || 'your_claude_api_key_here',
     defaultModel: 'claude-sonnet-4-5',
@@ -39,6 +17,59 @@ module.exports = {
     temperature: 0.7,
     // Files API beta header (required for file_id references)
     betaHeaders: ['files-api-2025-04-14']
+  },
+
+  // Agent-Specific A1Zap Configurations
+  agents: {
+    claudeDocubot: {
+      apiKey: process.env.A1ZAP_API_KEY || 'your_a1zap_api_key_here',
+      agentId: process.env.A1ZAP_AGENT_ID || 'your_agent_id_here',
+      apiUrl: 'https://api.a1zap.com/v1/messages/individual',
+      agentName: 'claude-docubot'
+    },
+
+    brandonEats: {
+      apiKey: process.env.BRANDONEATS_API_KEY || 'your_brandoneats_api_key_here',
+      agentId: process.env.BRANDONEATS_AGENT_ID || 'your_brandoneats_agent_id_here',
+      apiUrl: process.env.BRANDONEATS_API_URL || 'https://api.a1zap.com/v1/messages/individual',
+      agentName: 'brandoneats'
+    },
+
+    makeupArtist: {
+      apiKey: process.env.MAKEUP_ARTIST_API_KEY || process.env.A1ZAP_API_KEY || 'your_makeup_artist_api_key_here',
+      agentId: process.env.MAKEUP_ARTIST_AGENT_ID || 'your_makeup_artist_agent_id_here',
+      apiUrl: process.env.MAKEUP_ARTIST_API_URL || 'https://api.a1zap.com/v1/messages/individual',
+      agentName: 'makeup-artist'
+    },
+
+    ycPhotographer: {
+      apiKey: process.env.YC_PHOTOGRAPHER_API_KEY || process.env.A1ZAP_API_KEY || 'your_yc_photographer_api_key_here',
+      agentId: process.env.YC_PHOTOGRAPHER_AGENT_ID || 'your_yc_photographer_agent_id_here',
+      apiUrl: process.env.YC_PHOTOGRAPHER_API_URL || 'https://api.a1zap.com/v1/messages/individual',
+      agentName: 'yc-photographer'
+    }
+  },
+
+  // Legacy compatibility (deprecated - use config.agents instead)
+  a1zap: {
+    apiKey: process.env.A1ZAP_API_KEY || 'your_a1zap_api_key_here',
+    agentId: process.env.A1ZAP_AGENT_ID || 'your_agent_id_here',
+    apiUrl: 'https://api.a1zap.com/v1/messages/individual'
+  },
+  brandonEats: {
+    apiKey: process.env.BRANDONEATS_API_KEY || 'your_brandoneats_api_key_here',
+    agentId: process.env.BRANDONEATS_AGENT_ID || 'your_brandoneats_agent_id_here',
+    apiUrl: process.env.BRANDONEATS_API_URL || 'https://api.a1zap.com/v1/messages/individual'
+  },
+  makeupArtist: {
+    apiKey: process.env.MAKEUP_ARTIST_API_KEY || process.env.A1ZAP_API_KEY || 'your_makeup_artist_api_key_here',
+    agentId: process.env.MAKEUP_ARTIST_AGENT_ID || 'your_makeup_artist_agent_id_here',
+    apiUrl: process.env.MAKEUP_ARTIST_API_URL || 'https://api.a1zap.com/v1/messages/individual'
+  },
+  ycPhotographer: {
+    apiKey: process.env.YC_PHOTOGRAPHER_API_KEY || process.env.A1ZAP_API_KEY || 'your_yc_photographer_api_key_here',
+    agentId: process.env.YC_PHOTOGRAPHER_AGENT_ID || 'your_yc_photographer_agent_id_here',
+    apiUrl: process.env.YC_PHOTOGRAPHER_API_URL || 'https://api.a1zap.com/v1/messages/individual'
   },
 
   // File Registry Configuration
@@ -50,5 +81,55 @@ module.exports = {
   server: {
     port: process.env.PORT || 3000,
     baseUrl: process.env.BASE_URL || 'http://localhost:3000'
+  },
+
+  // Helper functions for validation
+  validation: {
+    /**
+     * Check if a value is a placeholder (not properly configured)
+     */
+    isPlaceholder(value) {
+      if (!value) return true;
+      const placeholders = [
+        'your_',
+        'YOUR_',
+        'undefined',
+        'null',
+        ''
+      ];
+      return placeholders.some(p => String(value).startsWith(p));
+    },
+
+    /**
+     * Validate agent configuration
+     */
+    validateAgent(agentName, agentConfig) {
+      const warnings = [];
+      const errors = [];
+
+      if (this.isPlaceholder(agentConfig.apiKey)) {
+        errors.push(`❌ ${agentName}: API Key is not configured (using placeholder value)`);
+      }
+
+      if (this.isPlaceholder(agentConfig.agentId)) {
+        errors.push(`❌ ${agentName}: Agent ID is not configured (using placeholder value)`);
+      }
+
+      return { warnings, errors };
+    },
+
+    /**
+     * Validate AI service configuration
+     */
+    validateAIService(serviceName, serviceConfig) {
+      const warnings = [];
+      const errors = [];
+
+      if (this.isPlaceholder(serviceConfig.apiKey)) {
+        warnings.push(`⚠️  ${serviceName}: API Key is not configured (using placeholder value)`);
+      }
+
+      return { warnings, errors };
+    }
   }
 };
