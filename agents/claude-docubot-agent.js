@@ -56,6 +56,40 @@ Communication Style:
 
 IMPORTANT: Never start your responses with your name "Claude DocuBot:" - respond directly with the information.`;
   }
+
+  /**
+   * Get welcome message for chat.started event
+   * @param {string} userName - User's name (if available)
+   * @param {boolean} isAnonymous - Whether the user is anonymous
+   * @returns {string} Welcome message
+   */
+  getWelcomeMessage(userName, isAnonymous) {
+    let greeting;
+    if (userName && !isAnonymous) {
+      const firstName = userName.split(' ')[0];
+      greeting = `Hey ${firstName}! 👋`;
+    } else {
+      greeting = `Hey there! 👋`;
+    }
+
+    return `${greeting}
+
+I'm **Claude DocuBot**, your Document-Aware AI Assistant! 📄
+
+I have access to uploaded documents and can help you find information, answer questions, and get insights from your documents quickly and accurately.
+
+**How I can help you:**
+• Answer questions about document content
+• Find specific information or sections
+• Summarize key points and takeaways
+• Explain complex topics from the documents
+• Cross-reference information across different sections
+
+**What makes me different:**
+I don't just guess - I reference the actual documents to give you accurate, grounded answers. If something isn't in the documents, I'll let you know!
+
+What would you like to know about your documents?`;
+  }
 }
 
 // Export a singleton instance

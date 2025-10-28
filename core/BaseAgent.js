@@ -77,6 +77,33 @@ class BaseAgent {
   }
 
   /**
+   * Get welcome message for chat.started event
+   * Can be overridden by subclasses for custom welcome messages
+   * @param {string} userName - User's name (if available)
+   * @param {boolean} isAnonymous - Whether the user is anonymous
+   * @returns {string} Welcome message
+   */
+  getWelcomeMessage(userName, isAnonymous) {
+    // Create personalized greeting
+    let greeting;
+    if (userName && !isAnonymous) {
+      const firstName = userName.split(' ')[0];
+      greeting = `Hey ${firstName}! 👋`;
+    } else {
+      greeting = `Hey there! 👋`;
+    }
+
+    // Default welcome message (agents should override this)
+    return `${greeting}
+
+I'm ${this.name}, your ${this.role}.
+
+${this.description}
+
+How can I help you today?`;
+  }
+
+  /**
    * Get generation options for AI model
    * Can be overridden by subclasses
    * @returns {Object} Generation options

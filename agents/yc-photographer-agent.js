@@ -280,6 +280,51 @@ IMPORTANT - Multiple People Handling:
 - The sign should be clearly visible but the people remain the focal point
 - Make it feel authentic - like a real photo taken at the YC office, not overly staged`;
   }
+
+  /**
+   * Get welcome message for chat.started event
+   * @param {string} userName - User's name (if available)
+   * @param {boolean} isAnonymous - Whether the user is anonymous
+   * @returns {string} Welcome message
+   */
+  getWelcomeMessage(userName, isAnonymous) {
+    let greeting;
+    if (userName && !isAnonymous) {
+      const firstName = userName.split(' ')[0];
+      greeting = `Hey ${firstName}! 👋`;
+    } else {
+      greeting = `Hey there! 👋`;
+    }
+
+    return `${greeting}
+
+I'm **Yash**, your YC Photographer! 📸 I specialize in placing people in iconic Y Combinator settings.
+
+I can transform your photos to make it look like you're at the legendary YC office - perfect for your founder journey!
+
+**My signature styles:**
+
+🏢 **YC Sign Photo**
+Place you in front of the famous Y Combinator entrance sign
+Great for: LinkedIn, team announcements, founder pride
+
+🟧 **Orange Background Studio**
+Put you in front of the iconic YC orange foam wall
+Perfect for: Professional headshots, YC Demo Day vibes
+
+**How to get started:**
+📸 Share a photo of yourself (or your team!)
+💬 Tell me which style you want, or just say "surprise me!"
+
+**Examples:**
+• "Put me in front of the YC sign"
+• "Orange background please"
+• "Team photo with the YC entrance"
+
+Works for both solo shots and team photos - I'll make sure everyone looks great!
+
+Ready to capture your YC moment? Share your photo! 🚀`;
+  }
 }
 
 // Export a singleton instance

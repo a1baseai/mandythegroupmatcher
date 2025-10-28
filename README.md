@@ -321,6 +321,33 @@ await brandonEatsClient.sendMessage(chatId, 'Check out these videos!', richConte
 
 ## 🚀 Advanced Features
 
+### 🎉 Welcome Messages (New!)
+
+All agents now automatically send personalized welcome messages when users start a new chat:
+
+- **Personalized greetings** - Uses first name when available
+- **Agent-specific content** - Each agent explains its unique capabilities
+- **Call to action** - Prompts users with examples and suggestions
+- **Automatic detection** - Triggers on A1Zap's `chat.started` event
+
+```javascript
+// User starts chat → Receives welcome message
+"Hey John! 👋
+
+I'm Brandy, representing Brandon from @brandneweats! 🍜
+
+I'm your AI guide to Brandon's favorite Vietnamese food spots...
+
+What are you craving, or where are you headed?"
+```
+
+**Test it:**
+```bash
+node tests/test-chat-started.js
+```
+
+**📖 See `docs/CHAT_STARTED_IMPLEMENTATION.md` for complete documentation.**
+
 ### Intelligent Filtering & Social Link Extraction
 
 The Brandon Eats agent uses a sophisticated multi-stage filtering system:

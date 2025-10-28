@@ -55,6 +55,14 @@ class BaseWebhook {
       console.log(`\n=== ${this.agent.name} Webhook Received ===`);
       console.log('Request body:', JSON.stringify(req.body, null, 2));
 
+      // Check for chat.started event and route accordingly
+      const { event } = req.body;
+      
+      if (event === 'chat.started') {
+        console.log('🎉 Chat started event detected - sending welcome message');
+        return this.handleChatStarted(req, res);
+      }
+
       // Step 1: Extract and validate webhook data
       const data = this.extractWebhookData(req.body);
       if (!data.valid) {
@@ -134,6 +142,60 @@ class BaseWebhook {
       message,
       agent
     };
+  }
+
+  /**
+   * Handle chat.started event - send welcome message
+   * @param {Object} req - Express request
+   * @param {Object} res - Express response
+   */
+  async handleChatStarted(req, res) {
+    try {
+      // Support both payload structures (newer and legacy)
+      const { chatMetadata, chatId: rootChatId, user: rootUser } = req.body;
+      
+      const chatId = rootChatId || chatMetadata?.chatId;
+      const userName = rootUser?.userName || chatMetadata?.user?.userName;
+      const isAnonymous = rootUser?.isAnonymous || chatMetadata?.user?.isAnonymous;
+      
+      // Validate chatId
+      if (!chatId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing chatId in webhook payload'
+        });
+      }
+
+      console.log(`👋 Chat started with user: ${userName || 'Anonymous'} (chatId: ${chatId})`);
+
+      // Get welcome message from agent
+      const welcomeMessage = this.agent.getWelcomeMessage(userName, isAnonymous);
+
+      // Send welcome message (skip if test mode)
+      if (!webhookHelpers.isTestChat(chatId)) {
+        await this.client.sendMessage(chatId, welcomeMessage);
+        console.log('✅ Welcome message sent successfully!');
+      } else {
+        console.log('⚠️  Test mode: Skipping welcome message send');
+      }
+
+      // Return success
+      return res.json({
+        success: true,
+        event: 'chat.started',
+        agent: this.agent.name,
+        welcomeMessageSent: true,
+        userName: userName || 'Anonymous'
+      });
+
+    } catch (error) {
+      console.error('❌ Error handling chat.started event:', error.message);
+      return res.status(500).json({
+        success: false,
+        error: error.message,
+        event: 'chat.started'
+      });
+    }
   }
 
   /**

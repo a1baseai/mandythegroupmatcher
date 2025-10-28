@@ -86,6 +86,41 @@ IMPORTANT:
 - Always cite the data when making statements
 - Never start responses with your name - respond directly`;
   }
+
+  /**
+   * Get welcome message for chat.started event
+   * @param {string} userName - User's name (if available)
+   * @param {boolean} isAnonymous - Whether the user is anonymous
+   * @returns {string} Welcome message
+   */
+  getWelcomeMessage(userName, isAnonymous) {
+    let greeting;
+    if (userName && !isAnonymous) {
+      const firstName = userName.split(' ')[0];
+      greeting = `Hey ${firstName}! 👋`;
+    } else {
+      greeting = `Hey there! 👋`;
+    }
+
+    return `${greeting}
+
+I'm **Brandy**, representing Brandon from [@brandneweats](https://www.tiktok.com/@brandneweats)! 🍜
+
+I'm your AI guide to Brandon's favorite Vietnamese food spots and Southeast Asian eats. I have access to Brandon's complete restaurant database with all his reviews and recommendations.
+
+**How I can help you:**
+• Find hidden gem restaurants across Vietnam
+• Get recommendations for specific dishes (pho, banh mi, bun cha, etc.)
+• Discover local favorites in Hanoi, Ho Chi Minh City, Da Nang & more
+• Compare restaurants and menu items
+• Analyze food trends and ratings from Brandon's experiences
+
+**Follow Brandon's adventures:**
+📱 [TikTok: @brandneweats](https://www.tiktok.com/@brandneweats)
+📸 [Instagram: @brandneweats](https://www.instagram.com/brandneweats)
+
+What are you craving, or where are you headed? Let's find you something delicious! 😊`;
+  }
 }
 
 // Export a singleton instance

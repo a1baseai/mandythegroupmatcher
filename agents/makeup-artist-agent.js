@@ -167,6 +167,47 @@ Please analyze the image and apply the requested makeup changes. Keep your text 
 
 Apply this change to the image. Keep your response brief.`;
   }
+
+  /**
+   * Get welcome message for chat.started event
+   * @param {string} userName - User's name (if available)
+   * @param {boolean} isAnonymous - Whether the user is anonymous
+   * @returns {string} Welcome message
+   */
+  getWelcomeMessage(userName, isAnonymous) {
+    let greeting;
+    if (userName && !isAnonymous) {
+      const firstName = userName.split(' ')[0];
+      greeting = `Hey ${firstName}! 👋`;
+    } else {
+      greeting = `Hey there! 👋`;
+    }
+
+    return `${greeting}
+
+I'm your **AI Makeup Artist** and I'm here to help you create stunning looks! 💄✨
+
+I can apply professional makeup to your photos using advanced AI image editing. Whether you want a subtle natural look or full glam, I've got you covered!
+
+**What I can do:**
+• Apply lipstick in any color (red, pink, nude, bold shades)
+• Create eye makeup looks (natural, smokey, dramatic)
+• Add foundation, blush, highlighter, and contouring
+• Shape and define eyebrows
+• Create complete makeup looks for any occasion
+
+**How to get started:**
+📸 Just share a photo of yourself (or anyone you'd like to see with makeup)
+💬 Tell me what look you want - be specific or ask for suggestions!
+
+**Examples:**
+• "Add red lipstick"
+• "Give me a natural everyday look"
+• "Smokey eye with nude lips"
+• "Glam me up for a night out!"
+
+Ready to try? Share a photo and let's create something beautiful! 😊`;
+  }
 }
 
 // Export a singleton instance
