@@ -244,14 +244,14 @@ class BaseA1ZapClient {
         ? `${this.apiKey.substring(0, 8)}...${this.apiKey.substring(this.apiKey.length - 4)}`
         : '***masked***';
       
-      console.log(`\n📋 Headers:`);
-      console.log(`   X-API-Key: ${maskedKey}`);
+      // console.log(`\n📋 Headers:`);
+      // console.log(`   X-API-Key: ${maskedKey}`);
       
-      console.log(`\n🔧 Curl equivalent:`);
-      console.log(`curl -X GET '${url}' \\`);
-      console.log(`  -H 'X-API-Key: YOUR_API_KEY_HERE'`);
-      console.log(`\n💡 To test manually, replace YOUR_API_KEY_HERE with your actual API key`);
-      console.log(`${'='.repeat(80)}\n`);
+      // console.log(`\n🔧 Curl equivalent:`);
+      // console.log(`curl -X GET '${url}' \\`);
+      // console.log(`  -H 'X-API-Key: YOUR_API_KEY_HERE'`);
+      // console.log(`\n💡 To test manually, replace YOUR_API_KEY_HERE with your actual API key`);
+      // console.log(`${'='.repeat(80)}\n`);
 
       const response = await axios.get(url, {
         headers: {
