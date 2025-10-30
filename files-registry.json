@@ -1,7 +1,8 @@
 {
   "agentFiles": {
-    "brandoneats": "file_011CUUB6zeYsWPkmpo9NYR4b",
-    "claude-docubot": "file_011CUUB6zeYsWPkmpo9NYR4b"
+    "brandoneats": "file_011CUcbkCGepBTpemXAZVzH4",
+    "claude-docubot": "file_011CUcbkCGepBTpemXAZVzH4",
+    "willwanderforfood": "file_011CUcbkCGepBTpemXAZVzH4"
   },
   "files": [
     {
@@ -10,10 +11,35 @@
       "mimeType": "text/csv",
       "sizeBytes": 57059,
       "uploadedAt": "2025-10-25T15:44:53.926Z",
-      "assignedToAgents": [
-        "brandoneats"
-      ],
+      "assignedToAgents": ["brandoneats"],
       "originalPath": "/Users/pasha/a1base/brandytest/files/brandoneats.csv"
+    },
+    {
+      "id": "file_011CUcbkCGepBTpemXAZVzH4",
+      "filename": "willwanderforfood.csv",
+      "mimeType": "text/csv",
+      "sizeBytes": 28824,
+      "uploadedAt": "2025-10-30T02:32:47.415Z",
+      "assignedToAgents": ["willwanderforfood"],
+      "originalPath": "/Users/mbokinala/projects/a1/a1zap-image-multiturn-agent/files/willwanderforfood.csv"
+    },
+    {
+      "id": "file_011CUcb1msnkKjmX1zuMh8RE",
+      "filename": "willwanderforfood.csv",
+      "mimeType": "text/csv",
+      "sizeBytes": 28824,
+      "uploadedAt": "2025-10-30T02:23:11.816Z",
+      "assignedToAgents": [],
+      "originalPath": "/Users/mbokinala/projects/a1/a1zap-image-multiturn-agent/files/willwanderforfood.csv"
+    },
+    {
+      "id": "file_011CUcbkCGepBTpemXAZVzH4",
+      "filename": "willwanderforfood.csv",
+      "mimeType": "text/csv",
+      "sizeBytes": 28824,
+      "uploadedAt": "2025-10-30T02:32:47.415Z",
+      "assignedToAgents": [],
+      "originalPath": "/Users/mbokinala/projects/a1/a1zap-image-multiturn-agent/files/willwanderforfood.csv"
     }
   ]
 }

@@ -2,7 +2,7 @@ const path = require('path');
 const BaseWebhook = require('../core/BaseWebhook');
 const BaseA1ZapClient = require('../core/BaseA1ZapClient');
 const claudeService = require('../services/claude-service');
-const brandonEatsAgent = require('../agents/brandoneats-agent');
+const willWanderForFoodAgent = require('../agents/willwanderforfood-agent');
 const fileRegistry = require('../services/file-registry');
 const SocialLinkExtractor = require('../services/social-link-extractor');
 const webhookHelpers = require('../services/webhook-helpers');
@@ -43,17 +43,17 @@ const config = require('../config');
  * 
  * ═══════════════════════════════════════════════════════════════════════════
  */
-class BrandonEatsWebhook extends BaseWebhook {
+class WillWanderForFoodWebhook extends BaseWebhook {
   constructor() {
     // Create A1Zap client for this agent
-    const client = new BaseA1ZapClient(config.agents.brandonEats);
+    const client = new BaseA1ZapClient(config.agents.willWanderForFood);
 
     // Initialize base webhook
-    super(brandonEatsAgent, client);
+    super(willWanderForFoodAgent, client);
 
-    // Create social link extractor instance with brandoneats.csv
+    // Create social link extractor instance with willwanderforfood.csv
     this.socialLinkExtractor = new SocialLinkExtractor(
-      path.join(__dirname, '../files/brandoneats.csv')
+      path.join(__dirname, '../files/willwanderforfood.csv')
     );
   }
 
@@ -90,19 +90,19 @@ class BrandonEatsWebhook extends BaseWebhook {
     }
 
     // Check if base file is set for brandoneats agent
-    const baseFileId = fileRegistry.getBaseFile('brandoneats');
+    const baseFileId = fileRegistry.getBaseFile('willwanderforfood');
     if (baseFileId) {
       const fileInfo = fileRegistry.getFileById(baseFileId);
-      console.log(`📊 Using data file for Brandon Eats: ${fileInfo?.filename || baseFileId}`);
+      console.log(`📊 Using data file for Will Wander for Food: ${fileInfo?.filename || baseFileId}`);
     } else {
-      console.warn('⚠️  No base file set for Brandon Eats - responses will not have data context');
+      console.warn('⚠️  No base file set for Will Wander for Food - responses will not have data context');
     }
 
     // Add the current message to conversation
     const fullConversation = [...conversation, { role: 'user', content: String(userMessage) }];
 
     // Generate response using Claude with Brandon Eats agent configuration
-    console.log('Generating response with Claude using Brandon Eats agent...');
+    console.log('Generating response with Claude using Will Wander for Food agent...');
     let response;
 
     if (fullConversation.length > 1) {
@@ -110,7 +110,7 @@ class BrandonEatsWebhook extends BaseWebhook {
       response = await claudeService.chatWithBaseFile(fullConversation, {
         ...this.agent.getGenerationOptions(),
         systemPrompt: this.agent.getSystemPrompt(),
-        agentName: 'brandoneats'
+        agentName: 'willwanderforfood'
       });
     } else {
       // First message - use generateWithBaseFile
@@ -119,7 +119,7 @@ class BrandonEatsWebhook extends BaseWebhook {
         {
           ...this.agent.getGenerationOptions(),
           systemPrompt: this.agent.getSystemPrompt(),
-          agentName: 'brandoneats'
+          agentName: 'willwanderforfood'
         }
       );
     }
@@ -255,5 +255,5 @@ Answer:`;
 }
 
 // Create and export singleton webhook handler
-const brandonEatsWebhook = new BrandonEatsWebhook();
-module.exports = brandonEatsWebhook.createHandler();
+const willWanderForFoodWebhook = new WillWanderForFoodWebhook();
+module.exports = willWanderForFoodWebhook.createHandler();
