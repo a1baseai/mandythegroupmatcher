@@ -19,6 +19,7 @@ const AgentRegistry = require('./core/AgentRegistry');
 // Agent configurations
 const claudeDocubotAgent = require('./agents/claude-docubot-agent');
 const brandonEatsAgent = require('./agents/brandoneats-agent');
+const willWanderForFoodAgent = require('./agents/willwanderforfood-agent');
 const makeupArtistAgent = require('./agents/makeup-artist-agent');
 const ycPhotographerAgent = require('./agents/yc-photographer-agent');
 const zapbankRepAgent = require('./agents/zapbank-rep-agent');
@@ -26,6 +27,7 @@ const zapbankRepAgent = require('./agents/zapbank-rep-agent');
 // Webhook handlers
 const claudeWebhookHandler = require('./webhooks/claude-webhook');
 const brandonEatsWebhookHandler = require('./webhooks/brandoneats-webhook');
+const willWanderForFoodWebhookHandler = require('./webhooks/willwanderforfood-webhook');
 const makeupArtistWebhookHandler = require('./webhooks/makeup-artist-webhook');
 const ycPhotographerWebhookHandler = require('./webhooks/yc-photographer-webhook');
 const zapbankRepWebhookHandler = require('./webhooks/zapbank-rep-webhook');
@@ -38,6 +40,7 @@ const imageStorage = require('./services/image-storage');
 const agentRegistry = new AgentRegistry();
 agentRegistry.register('claude-docubot', claudeDocubotAgent, claudeWebhookHandler);
 agentRegistry.register('brandoneats', brandonEatsAgent, brandonEatsWebhookHandler);
+agentRegistry.register('willwanderforfood', willWanderForFoodAgent, willWanderForFoodWebhookHandler);
 agentRegistry.register('makeup-artist', makeupArtistAgent, makeupArtistWebhookHandler);
 agentRegistry.register('yc-photographer', ycPhotographerAgent, ycPhotographerWebhookHandler);
 agentRegistry.register('zapbank-rep', zapbankRepAgent, zapbankRepWebhookHandler);
@@ -87,6 +90,7 @@ app.get('/', (req, res) => {
       health: 'GET /health',
       claudeDocubot: 'POST /webhook/claude',
       brandonEats: 'POST /webhook/brandoneats',
+      willWanderForFood: 'POST /webhook/willwanderforfood',
       makeupArtist: 'POST /webhook/makeup-artist',
       ycPhotographer: 'POST /webhook/yc-photographer',
       zapbankRep: 'POST /webhook/zapbank-rep',
@@ -103,6 +107,9 @@ app.post('/webhook/claude', claudeWebhookHandler);
 
 // Brandon Eats specialized webhook endpoint
 app.post('/webhook/brandoneats', brandonEatsWebhookHandler);
+
+// Will Wander for Food specialized webhook endpoint
+app.post('/webhook/willwanderforfood', willWanderForFoodWebhookHandler);
 
 // Makeup Artist webhook endpoint (with Gemini image generation)
 app.post('/webhook/makeup-artist', makeupArtistWebhookHandler);
@@ -199,6 +206,7 @@ if (allWarnings.length > 0) {
   allWarnings.forEach(w => console.log(`  ${w}`));
   console.log('');
 }
+
 
 // Display errors
 if (allErrors.length > 0) {

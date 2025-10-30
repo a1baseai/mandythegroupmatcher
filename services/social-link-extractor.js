@@ -9,9 +9,12 @@ const claudeService = require('./claude-service');
  */
 
 class SocialLinkExtractor {
-  constructor() {
+  constructor(csvPath) {
+    if (!csvPath) {
+      throw new Error('SocialLinkExtractor requires a csvPath parameter');
+    }
     this.socialLinksCache = null;
-    this.csvPath = path.join(__dirname, '../files/brandoneats.csv');
+    this.csvPath = csvPath;
   }
 
   /**
@@ -40,8 +43,9 @@ class SocialLinkExtractor {
   }
 
   /**
-   * Load and parse the Brandon Eats CSV file
-   * Returns array of objects with name, type, city, tiktokLink, transcript, available
+   * Load and parse the CSV file
+   * Returns array of objects with name, tiktokLink, transcript, and optional type, city, available
+   * Handles different CSV structures flexibly
    */
   async loadSocialLinks() {
     try {
@@ -53,38 +57,66 @@ class SocialLinkExtractor {
       console.log('📊 Loading social links from CSV...');
       const csvContent = await fs.readFile(this.csvPath, 'utf-8');
       const lines = csvContent.split('\n').filter(line => line.trim());
-      
+
       if (lines.length === 0) {
         console.warn('⚠️  CSV file is empty');
         return [];
       }
 
-      // Parse header
+      // Parse header and create column index map
       const header = this.parseCSVLine(lines[0]);
       console.log('CSV Headers:', header);
+
+      // Create a case-insensitive column index map
+      const columnMap = {};
+      header.forEach((col, index) => {
+        const normalizedCol = col.toLowerCase().trim();
+        columnMap[normalizedCol] = index;
+      });
+
+      // Helper to get value by column name (case-insensitive)
+      const getColumnValue = (values, columnName) => {
+        const index = columnMap[columnName.toLowerCase()];
+        return index !== undefined ? (values[index] || '') : '';
+      };
 
       // Parse data rows
       const socialLinks = [];
       for (let i = 1; i < lines.length; i++) {
         const values = this.parseCSVLine(lines[i]);
-        
-        // Skip if not enough columns or no TikTok link
-        if (values.length < 4 || !values[3] || !values[3].startsWith('http')) {
+
+        // Find TikTok link column (could be "TikTok Link" or "tiktok link", etc.)
+        const tiktokLink = getColumnValue(values, 'tiktok link') ||
+                          getColumnValue(values, 'tiktoklink') ||
+                          getColumnValue(values, 'link');
+
+        // Skip if no valid TikTok link
+        if (!tiktokLink || !tiktokLink.startsWith('http')) {
           continue;
         }
 
-        socialLinks.push({
-          name: values[0] || '',
-          type: values[1] || '',
-          city: values[2] || '',
-          tiktokLink: values[3] || '',
-          transcript: values[4] || '',
-          available: values[5] || ''
-        });
+        // Build object with required and optional fields
+        const linkObj = {
+          name: getColumnValue(values, 'name'),
+          tiktokLink: tiktokLink,
+          transcript: getColumnValue(values, 'transcript') || getColumnValue(values, 'caption'),
+        };
+
+        // Add optional fields if they exist in the CSV
+        const type = getColumnValue(values, 'type');
+        if (type) linkObj.type = type;
+
+        const city = getColumnValue(values, 'city');
+        if (city) linkObj.city = city;
+
+        const available = getColumnValue(values, 'available');
+        if (available) linkObj.available = available;
+
+        socialLinks.push(linkObj);
       }
 
       console.log(`✅ Loaded ${socialLinks.length} social links from CSV`);
-      
+
       // Cache the results
       this.socialLinksCache = socialLinks;
       return socialLinks;
@@ -246,7 +278,13 @@ RESPONSE TEXT:
 ${responseText}
 
 AVAILABLE RESTAURANTS:
-${allLinks.slice(0, 50).map((link, i) => `${i + 1}. ${link.name} (${link.type}, ${link.city})`).join('\n')}
+${allLinks.slice(0, 50).map((link, i) => {
+  const details = [];
+  if (link.type) details.push(link.type);
+  if (link.city) details.push(link.city);
+  const detailsStr = details.length > 0 ? ` (${details.join(', ')})` : '';
+  return `${i + 1}. ${link.name}${detailsStr}`;
+}).join('\n')}
 
 Task: Suggest 2-3 restaurants from the list that are the CLOSEST match to what the user wanted, even if not perfect.
 
@@ -349,13 +387,17 @@ Analyze and suggest:`;
         
         if (alternatives.length > 0) {
           const alternativeLinks = alternatives
-            .map(link => ({
-              name: link.name,
-              url: link.tiktokLink,
-              type: link.type,
-              city: link.city,
-              contextMessage // Add context to explain why we're showing these
-            }))
+            .map(link => {
+              const linkObj = {
+                name: link.name,
+                url: link.tiktokLink,
+                contextMessage // Add context to explain why we're showing these
+              };
+              // Add optional fields if they exist
+              if (link.type) linkObj.type = link.type;
+              if (link.city) linkObj.city = link.city;
+              return linkObj;
+            })
             .filter(link => link.url);
 
           console.log(`✅ Found ${alternativeLinks.length} relevant alternatives to suggest`);
@@ -371,12 +413,16 @@ Analyze and suggest:`;
       // Find the corresponding links for mentioned restaurants
       const relevantLinks = allLinks
         .filter(link => mentionedNames.includes(link.name))
-        .map(link => ({
-          name: link.name,
-          url: link.tiktokLink,
-          type: link.type,
-          city: link.city
-        }))
+        .map(link => {
+          const linkObj = {
+            name: link.name,
+            url: link.tiktokLink
+          };
+          // Add optional fields if they exist
+          if (link.type) linkObj.type = link.type;
+          if (link.city) linkObj.city = link.city;
+          return linkObj;
+        })
         .filter(link => link.url); // Ensure URL exists
 
       // Deduplicate by URL - keep only the first occurrence of each unique URL
@@ -417,6 +463,6 @@ Analyze and suggest:`;
   }
 }
 
-// Export singleton instance
-module.exports = new SocialLinkExtractor();
+// Export the class (not singleton - each webhook creates its own instance)
+module.exports = SocialLinkExtractor;
 
