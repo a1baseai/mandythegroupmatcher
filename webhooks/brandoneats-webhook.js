@@ -1,9 +1,10 @@
+const path = require('path');
 const BaseWebhook = require('../core/BaseWebhook');
 const BaseA1ZapClient = require('../core/BaseA1ZapClient');
 const claudeService = require('../services/claude-service');
 const brandonEatsAgent = require('../agents/brandoneats-agent');
 const fileRegistry = require('../services/file-registry');
-const socialLinkExtractor = require('../services/social-link-extractor');
+const SocialLinkExtractor = require('../services/social-link-extractor');
 const webhookHelpers = require('../services/webhook-helpers');
 const config = require('../config');
 
@@ -46,9 +47,14 @@ class BrandonEatsWebhook extends BaseWebhook {
   constructor() {
     // Create A1Zap client for this agent
     const client = new BaseA1ZapClient(config.agents.brandonEats);
-    
+
     // Initialize base webhook
     super(brandonEatsAgent, client);
+
+    // Create social link extractor instance with brandoneats.csv
+    this.socialLinkExtractor = new SocialLinkExtractor(
+      path.join(__dirname, '../files/brandoneats.csv')
+    );
   }
 
   /**
@@ -204,7 +210,7 @@ Answer:`;
       }
 
       console.log('✅ Response discusses specific restaurants - checking for social links...');
-      const relevantLinks = await socialLinkExtractor.extractRelevantSocialLinks(response);
+      const relevantLinks = await this.socialLinkExtractor.extractRelevantSocialLinks(response);
 
       if (relevantLinks && relevantLinks.length > 0) {
         console.log(`📹 Found ${relevantLinks.length} relevant TikTok links, sending follow-up message...`);
