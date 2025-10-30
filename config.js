@@ -1,5 +1,5 @@
 // Load environment variables
-require('dotenv').config();
+
 
 module.exports = {
   // AI Model Configurations
@@ -47,6 +47,13 @@ module.exports = {
       agentId: process.env.YC_PHOTOGRAPHER_AGENT_ID || 'your_yc_photographer_agent_id_here',
       apiUrl: process.env.YC_PHOTOGRAPHER_API_URL || 'https://api.a1zap.com/v1/messages/individual',
       agentName: 'yc-photographer'
+    },
+
+    zapbankRep: {
+      apiKey: process.env.ZAPBANK_REP_API_KEY || process.env.A1ZAP_API_KEY || 'your_zapbank_rep_api_key_here',
+      agentId: process.env.ZAPBANK_REP_AGENT_ID || 'your_zapbank_rep_agent_id_here',
+      apiUrl: process.env.ZAPBANK_REP_API_URL || 'https://api.a1zap.com/v1/messages/individual',
+      agentName: 'zapbank-rep'
     }
   },
 
@@ -70,6 +77,11 @@ module.exports = {
     apiKey: process.env.YC_PHOTOGRAPHER_API_KEY || process.env.A1ZAP_API_KEY || 'your_yc_photographer_api_key_here',
     agentId: process.env.YC_PHOTOGRAPHER_AGENT_ID || 'your_yc_photographer_agent_id_here',
     apiUrl: process.env.YC_PHOTOGRAPHER_API_URL || 'https://api.a1zap.com/v1/messages/individual'
+  },
+  zapbankRep: {
+    apiKey: process.env.ZAPBANK_REP_API_KEY || process.env.A1ZAP_API_KEY || 'your_zapbank_rep_api_key_here',
+    agentId: process.env.ZAPBANK_REP_AGENT_ID || 'your_zapbank_rep_agent_id_here',
+    apiUrl: process.env.ZAPBANK_REP_API_URL || 'https://api.a1zap.com/v1/messages/individual'
   },
 
   // File Registry Configuration

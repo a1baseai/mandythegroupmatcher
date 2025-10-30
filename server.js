@@ -21,12 +21,14 @@ const claudeDocubotAgent = require('./agents/claude-docubot-agent');
 const brandonEatsAgent = require('./agents/brandoneats-agent');
 const makeupArtistAgent = require('./agents/makeup-artist-agent');
 const ycPhotographerAgent = require('./agents/yc-photographer-agent');
+const zapbankRepAgent = require('./agents/zapbank-rep-agent');
 
 // Webhook handlers
 const claudeWebhookHandler = require('./webhooks/claude-webhook');
 const brandonEatsWebhookHandler = require('./webhooks/brandoneats-webhook');
 const makeupArtistWebhookHandler = require('./webhooks/makeup-artist-webhook');
 const ycPhotographerWebhookHandler = require('./webhooks/yc-photographer-webhook');
+const zapbankRepWebhookHandler = require('./webhooks/zapbank-rep-webhook');
 
 // Services
 const { getBaseFileInfo, getAllAgentFiles, listUploadedFiles } = require('./services/file-upload');
@@ -38,6 +40,7 @@ agentRegistry.register('claude-docubot', claudeDocubotAgent, claudeWebhookHandle
 agentRegistry.register('brandoneats', brandonEatsAgent, brandonEatsWebhookHandler);
 agentRegistry.register('makeup-artist', makeupArtistAgent, makeupArtistWebhookHandler);
 agentRegistry.register('yc-photographer', ycPhotographerAgent, ycPhotographerWebhookHandler);
+agentRegistry.register('zapbank-rep', zapbankRepAgent, zapbankRepWebhookHandler);
 
 const app = express();
 
@@ -50,6 +53,9 @@ app.use('/temp-images', express.static(imageStorage.getTempDirPath()));
 
 // Static file serving for reference images (YC settings, etc.)
 app.use('/reference-images', express.static('./reference-images'));
+
+// Static file serving for marketing/product images
+app.use('/static-images', express.static('./static-images'));
 
 // Request logging
 app.use((req, res, next) => {
@@ -82,6 +88,8 @@ app.get('/', (req, res) => {
       claudeDocubot: 'POST /webhook/claude',
       brandonEats: 'POST /webhook/brandoneats',
       makeupArtist: 'POST /webhook/makeup-artist',
+      ycPhotographer: 'POST /webhook/yc-photographer',
+      zapbankRep: 'POST /webhook/zapbank-rep',
       filesBaseAll: 'GET /files/base',
       filesBaseAgent: 'GET /files/base/:agent',
       filesList: 'GET /files/list',
@@ -101,6 +109,9 @@ app.post('/webhook/makeup-artist', makeupArtistWebhookHandler);
 
 // YC Photographer webhook endpoint (with Gemini image generation)
 app.post('/webhook/yc-photographer', ycPhotographerWebhookHandler);
+
+// Zap Bank Rep webhook endpoint
+app.post('/webhook/zapbank-rep', zapbankRepWebhookHandler);
 
 // File management endpoints
 app.get('/files/base', (req, res) => {
@@ -218,6 +229,7 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`  POST /webhook/brandoneats     - Brandon Eats (data analyst)`);
   console.log(`  POST /webhook/makeup-artist   - Makeup Artist (image generation)`);
   console.log(`  POST /webhook/yc-photographer - YC Photographer (image generation)`);
+  console.log(`  POST /webhook/zapbank-rep     - Zap Bank Rep (sales advisor)`);
   console.log(`  GET  /health                  - Health check`);
   console.log(`  GET  /files/base              - Get base files for all agents`);
   console.log(`  GET  /files/base/:agent       - Get base file for specific agent`);
