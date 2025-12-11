@@ -39,6 +39,18 @@ Thumbs.db
 temp-images/
 !temp-images/.gitkeep
 
+# Group profile data (contains user data)
+data/*.json
+!data/.gitkeep
+
+# Test files (optional - uncomment to exclude)
+# test-*.js
+# *-test.js
+
+# Log files
+*.log
+/tmp/
+
 # Replit specific
 .replit
 .upm/

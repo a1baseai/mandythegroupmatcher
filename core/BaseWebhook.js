@@ -74,7 +74,7 @@ class BaseWebhook {
 
       // Step 2: Check for duplicate message
       if (webhookHelpers.isDuplicateMessage(data.messageId)) {
-        console.log(`⚠️  Duplicate message detected: ${data.messageId} - skipping processing`);
+        console.log(`⚠️  [${this.agent.name}] Duplicate message detected: ${data.messageId} - skipping processing`);
         return res.json({
           success: true,
           skipped: true,
@@ -86,27 +86,97 @@ class BaseWebhook {
       // Step 3: Mark message as processed IMMEDIATELY to prevent race conditions
       webhookHelpers.markMessageProcessed(data.messageId);
 
-      console.log(`Processing request for ${this.agent.name} from chat ${data.chatId}`);
-      console.log(`User message: "${data.userMessage}"`);
+      console.log(`\n[${this.agent.name}] Processing request:`);
+      console.log(`  Chat ID: ${data.chatId}`);
+      console.log(`  Message ID: ${data.messageId || 'MISSING - deduplication may not work!'}`);
+      console.log(`  User message: "${data.userMessage?.substring(0, 100)}..."`);
 
-      // Step 4: Fetch conversation history if needed
-      const conversation = await this.fetchConversationHistory(data);
-
-      // Step 5: Process the request (agent-specific logic)
-      const result = await this.processRequest({
-        ...data,
-        conversation
-      });
-
-      // Step 6: Send response
-      await this.sendResponse(data.chatId, result);
-
-      // Step 7: Return success
-      return res.json({
+      // Step 4: Return HTTP response IMMEDIATELY to acknowledge receipt
+      // This prevents A1Zap from timing out and retrying while we process
+      res.json({
         success: true,
         agent: this.agent.name,
-        ...result,
-        testMode: webhookHelpers.isTestChat(data.chatId)
+        processing: true,
+        messageId: data.messageId
+      });
+
+      // Step 5: Process asynchronously (fetch history, process, send response)
+      // This happens after we've returned the HTTP response
+      setImmediate(async () => {
+        try {
+          console.log(`🔄 [${this.agent.name}] Starting async processing for message ${data.messageId}`);
+          
+          // Step 5a: Fetch conversation history if needed (with timeout)
+          let conversation;
+          try {
+            const historyTimeout = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('History fetch timeout')), 5000)
+            );
+            conversation = await Promise.race([
+              this.fetchConversationHistory(data),
+              historyTimeout
+            ]);
+          } catch (historyError) {
+            // History fetch failures are non-critical - we can proceed without history
+            console.error(`⚠️  [${this.agent.name}] History fetch failed/timed out:`, historyError.message);
+            if (historyError.response?.status) {
+              console.error(`   Status: ${historyError.response.status} ${historyError.response.statusText}`);
+            }
+            conversation = []; // Use empty history as fallback
+            console.log(`✅ [${this.agent.name}] Continuing with empty conversation history`);
+          }
+
+          // Step 5b: Process the request (agent-specific logic) with overall timeout
+          let result;
+          try {
+            const processTimeout = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Process timeout')), 12000)
+            );
+            result = await Promise.race([
+              this.processRequest({
+                ...data,
+                conversation
+              }),
+              processTimeout
+            ]);
+          } catch (processError) {
+            console.error(`❌ [${this.agent.name}] Process error:`, processError.message);
+            // Return a default response to keep the flow going
+            result = {
+              response: "I'm having trouble processing that. Let's continue!",
+              sent: false
+            };
+          }
+
+          // Step 5c: Send response (with error handling but don't fail completely)
+          try {
+            if (result && result.response) {
+              console.log(`📤 [${this.agent.name}] Sending response (length: ${result.response.length} chars)`);
+              await this.sendResponse(data.chatId, result);
+              console.log(`✅ [${this.agent.name}] Async processing completed for message ${data.messageId}`);
+            } else {
+              console.error(`❌ [${this.agent.name}] No response in result object!`, JSON.stringify(result, null, 2));
+            }
+          } catch (sendError) {
+            console.error(`❌ [${this.agent.name}] Error sending response:`, sendError.message);
+            if (sendError.response) {
+              console.error(`   Status: ${sendError.response.status}, Data:`, sendError.response.data);
+            }
+            // Log but don't throw - we've already returned HTTP response
+          }
+        } catch (error) {
+          console.error(`❌ [${this.agent.name}] Critical error in async processing:`, error);
+          console.error(`   Stack:`, error.stack);
+          // Try to send a fallback response
+          try {
+            await this.sendResponse(data.chatId, {
+              response: "I encountered an error, but let's continue with the interview!",
+              sent: false
+            });
+          } catch (fallbackError) {
+            console.error(`❌ [${this.agent.name}] Even fallback response failed:`, fallbackError.message);
+          }
+        }
       });
 
     } catch (error) {

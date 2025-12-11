@@ -19,6 +19,13 @@ module.exports = {
     betaHeaders: ['files-api-2025-04-14']
   },
 
+  // Mandy agent configuration (legacy compatibility)
+  mandy: {
+    apiKey: process.env.A1ZAP_API_KEY || 'your_a1zap_api_key_here',
+    agentId: process.env.MANDY_AGENT_ID || 'your_mandy_agent_id_here',
+    apiUrl: 'https://api.a1zap.com/v1/messages/individual'
+  },
+
   // Agent-Specific A1Zap Configurations
   agents: {
     claudeDocubot: {
@@ -68,6 +75,13 @@ module.exports = {
       agentId: process.env.RICH_CONTENT_DEMO_AGENT_ID || 'your_rich_content_demo_agent_id_here',
       apiUrl: process.env.RICH_CONTENT_DEMO_API_URL || 'https://api.a1zap.com/v1/messages/individual',
       agentName: 'rich-content-demo'
+    },
+
+    mandy: {
+      apiKey: process.env.A1ZAP_API_KEY || 'your_a1zap_api_key_here',
+      agentId: process.env.MANDY_AGENT_ID || 'your_mandy_agent_id_here',
+      apiUrl: 'https://api.a1zap.com/v1/messages/individual',
+      agentName: 'mandy'
     }
   },
 

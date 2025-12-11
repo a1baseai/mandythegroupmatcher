@@ -1,495 +1,708 @@
-# AI Agent System with File Context 🤖📁
+# Mandy the Group Matchmaker
 
-Multi-model AI agent system with file-aware capabilities, powered by **Claude** and **Gemini**. Create intelligent agents that analyze documents, CSV data, and provide context-aware responses through A1Zap webhooks.
+A conversational AI agent that helps groups find compatible matches (like Harvard blocking groups). Mandy interviews groups through 10 questions, stores their profiles, and uses a sophisticated matching algorithm to pair compatible groups.
 
-## 🚀 Quick Start
+## Table of Contents
 
-### 1. Get Your API Keys
+- [Overview](#overview)
+- [How It Works](#how-it-works)
+- [Architecture](#architecture)
+- [Interview Flow](#interview-flow)
+- [Matching Algorithm](#matching-algorithm)
+- [Data Storage](#data-storage)
+- [Installation & Setup](#installation--setup)
+- [Usage](#usage)
+- [File Structure](#file-structure)
+- [API Reference](#api-reference)
 
-**Claude API Key** (Required):
-- Visit [Anthropic Console](https://console.anthropic.com/)
-- Create an account and get your API key
-- Required for file operations and document analysis
+---
 
-**A1Zap Credentials** (Required):
-- Go to A1Zap app → Make → Agent API
-- Create your agent → Copy your API Key and Agent ID
+## Overview
 
-**Gemini API Key** (Required for Makeup Artist):
-- Visit [Google AI Studio](https://aistudio.google.com/apikey)
-- Required for makeup artist image generation
-- Provides additional model flexibility
+Mandy is a webhook-based AI agent that:
 
-### 2. Deploy
+1. **Conducts Interviews**: Asks 10 questions to groups, validates answers, and stores complete profiles
+2. **Matches Groups**: Uses quantitative metrics (group size, interests) and AI-powered qualitative analysis to find compatible pairs
+3. **Stores Results**: Saves group profiles and matches in JSON files for persistence
 
-#### Option A: Replit (Recommended)
+### Key Features
 
-1. Import this project to Replit
-2. Add to Secrets (🔒 in sidebar):
+- ✅ Conversational interview flow with validation and clarification
+- ✅ AI-powered contextual acknowledgments (funny, playful responses)
+- ✅ Robust error handling and timeout protection
+- ✅ Sophisticated matching algorithm prioritizing group size and shared interests
+- ✅ Persistent data storage
+- ✅ On-demand matching events (matches only saved when explicitly run)
+
+---
+
+## How It Works
+
+### High-Level Flow
+
 ```
-CLAUDE_API_KEY=your_claude_key
-A1ZAP_API_KEY=your_a1zap_key
-A1ZAP_AGENT_ID=your_agent_id
-BASE_URL=https://your-repl.repl.co
+User starts chat → Mandy sends welcome message
+     ↓
+User responds → Mandy asks Question 1
+     ↓
+User answers → AI validates → Mandy acknowledges → Asks Question 2
+     ↓
+... (repeat for 10 questions) ...
+     ↓
+All questions answered → Profile saved → Interview complete
+     ↓
+Admin runs matching → All groups matched → Results saved
 ```
-3. Click **Run**
 
-#### Option B: Local Development
+### Webhook Architecture
 
-1. Clone the repository
-2. Install dependencies:
+Mandy uses A1Zap's webhook system:
+
+1. **A1Zap** receives messages from users
+2. **A1Zap** sends webhook POST requests to your server
+3. **Server** processes the request asynchronously:
+   - Fetches conversation history
+   - Determines current interview state
+   - Validates answer (if applicable)
+   - Generates response
+   - Sends response back to A1Zap
+4. **A1Zap** delivers the message to the user
+
+### Asynchronous Processing
+
+To prevent timeouts, the server:
+- **Immediately** returns HTTP 200 to A1Zap (acknowledgment)
+- Processes the request **asynchronously** in the background
+- Sends the response after processing completes
+
+This ensures A1Zap doesn't timeout even if AI calls take a few seconds.
+
+---
+
+## Architecture
+
+### Core Components
+
+#### 1. Base Classes (`core/`)
+
+**`BaseAgent.js`**
+- Abstract class defining agent structure
+- Properties: `name`, `systemPrompt`, `welcomeMessage`
+- Methods: `getSystemPrompt()`, `getWelcomeMessage()`
+
+**`BaseA1ZapClient.js`**
+- Unified client for A1Zap API
+- Handles sending messages and fetching conversation history
+- Error handling and logging
+
+**`BaseWebhook.js`**
+- Abstract webhook handler
+- Handles:
+  - Webhook request parsing
+  - Deduplication (prevents processing same message twice)
+  - Asynchronous processing
+  - Response sending
+  - Error handling
+
+**`AgentRegistry.js`**
+- Central registry for all agents
+- Manages agent registration and lookup
+
+#### 2. Mandy Agent (`agents/mandy-agent.js`)
+
+Defines Mandy's personality and interview questions:
+
+- **System Prompt**: Instructions for Mandy's behavior
+- **Welcome Message**: Opening message when chat starts
+- **10 Interview Questions**: The exact questions Mandy asks
+
+#### 3. Mandy Webhook (`webhooks/mandy-webhook.js`)
+
+The main logic handler extending `BaseWebhook`:
+
+**Key Methods:**
+- `handleChatStarted()`: Sends welcome message when chat begins
+- `processRequest()`: Main request router
+- `processQuestionAnswer()`: Handles answers during interview
+- `validateAnswer()`: Validates answers using AI (Claude)
+- `getFunAcknowledgment()`: Generates contextual, playful acknowledgments
+- `handleClarification()`: Processes clarification follow-ups
+- `saveCompletedProfile()`: Saves completed group profile
+
+**Interview State Management:**
+- Tracks current question number
+- Stores collected answers
+- Manages clarification state
+- Prevents duplicate group names
+
+#### 4. Services
+
+**`claude-service.js`**
+- Wrapper for Anthropic Claude API
+- Methods: `generateText()`, `chat()`, `chatWithBaseFile()`
+- Handles API calls and error handling
+
+**`group-profile-storage.js`**
+- Manages persistent storage
+- Handles:
+  - Group profiles (`group-profiles.json`)
+  - Interview state (`interview-state.json`)
+  - Matches (`matches.json`)
+- Methods: `saveGroupProfile()`, `getInterviewState()`, `saveMatch()`, etc.
+
+**`group-matching.js`**
+- Matching algorithm implementation
+- Calculates compatibility scores
+- Methods: `calculateCompatibility()`, `findBestMatch()`, `findMatchesForGroup()`
+
+**`webhook-helpers.js`**
+- Utility functions for webhook handling
+- Deduplication logic
+- Test chat detection
+
+---
+
+## Interview Flow
+
+### Step-by-Step Process
+
+#### 1. Chat Started Event
+
+When a user starts a chat with Mandy:
+
+```javascript
+// Event: chat.started
+handleChatStarted() {
+  1. Extract chatId from webhook
+  2. Check if welcome message already sent
+  3. Get welcome message from mandy-agent
+  4. Send via A1Zap API
+  5. Mark as sent
+  6. Return success
+}
+```
+
+**Welcome Message:**
+```
+Hey! 👋 I'm Mandy, your Group Matchmaker Helper!
+
+I help groups like yours find compatible matches (think blocking groups at Harvard). 
+I'll ask you 10 fun questions to create your group's profile.
+
+Please make sure all your groupmates are in this chat! 
+Are you ready to start the questions?
+```
+
+#### 2. Question Flow (Questions 1-10)
+
+For each question:
+
+```javascript
+processQuestionAnswer() {
+  1. Load interview state (current question, answers collected)
+  2. Validate user's answer using AI
+  3. If invalid → Ask for clarification
+  4. If valid → 
+     a. Save answer to interview state
+     b. Generate fun acknowledgment
+     c. Check if all 10 questions answered
+     d. If not → Ask next question
+     e. If yes → Save profile and complete
+}
+```
+
+**Validation Process:**
+- Uses Claude AI to validate answers
+- Pre-validation for specific questions (e.g., Question 2 = group size must be numeric)
+- Handles edge cases (e.g., "3 people" → extracts "3")
+- Prevents infinite clarification loops (max 3 attempts)
+
+**Acknowledgment Generation:**
+- Uses Claude AI to generate contextual, playful responses
+- References specific details from the answer
+- Falls back to simple acknowledgments if AI fails
+- Timeout protection (4-6 seconds max)
+
+#### 3. The 10 Questions
+
+1. **Group Name**: Must be unique
+2. **Group Size**: Number of people (1-100)
+3. **Ideal Day**: What they like to do
+4. **Fictional Group**: Who they'd be in fiction
+5. **Music Taste**: Genre/preferences
+6. **Disliked Celebrity**: Someone they all dislike
+7. **Origin Story**: How they met
+8. **Emoji**: Their group emoji
+9. **Roman Empire**: Random thing they think about
+10. **Side Quest**: Crazy adventure they've been on
+
+#### 4. Profile Completion
+
+When all 10 questions are answered:
+
+```javascript
+saveCompletedProfile() {
+  1. Build profile object with all answers
+  2. Check for duplicate group name
+  3. Save to group-profiles.json
+  4. Clear interview state
+  5. Send completion message
+}
+```
+
+**Completion Message:**
+```
+🎉 Amazing! I've created your group's profile. 
+Thanks for answering all my questions! 
+Your group "[Name]" is now in the matching pool. 
+I'll let you know when we find a great match for you!
+```
+
+---
+
+## Matching Algorithm
+
+### Overview
+
+The matching algorithm uses a **hybrid approach**:
+- **40% Quantitative** (objective metrics)
+- **60% Qualitative** (AI-powered analysis)
+
+### Quantitative Score (40%)
+
+Calculated from 4 weighted factors:
+
+#### 1. Group Size Similarity (40% of quantitative = 16% total)
+
+**CRITICAL PRIORITY** - Groups with similar sizes match better.
+
+**Scoring:**
+- Exact match (3 vs 3): **100 points**
+- Difference of 1 (3 vs 4): **90 points**
+- Difference of 2 (3 vs 5): **70 points**
+- Difference of 3 (3 vs 6): **50 points**
+- Difference of 4+: **10-40 points** (exponentially decreasing)
+
+#### 2. Music Taste Similarity (25% of quantitative = 10% total)
+
+Groups with similar music taste share compatible vibes.
+
+**Scoring:**
+- Exact match: **100 points**
+- Same genre: **80 points**
+- Related genres: **50 points**
+- No similarity: **20 points**
+
+**Genres Detected:**
+- Rock: rock, indie rock, alternative, punk
+- Pop: pop, mainstream, top 40
+- Hip-hop: rap, hip hop, hiphop, trap
+- Electronic: house, edm, electronic, techno
+- Indie: indie, alternative
+
+#### 3. Activity Similarity (25% of quantitative = 10% total)
+
+Based on "ideal day" responses.
+
+**Activity Categories:**
+- Outdoor: beach, hiking, mountain, park, camping
+- Food: eating, restaurant, cooking
+- Social: friends, hanging, party
+- Creative: art, music, projects
+- Chill: relax, netflix, watching
+- Adventure: exploring, travel, road trip
+
+**Scoring:**
+- Same category: **70-100 points**
+- Common keywords: **20-60 points**
+- No similarity: **20 points**
+
+#### 4. Emoji/Vibe Similarity (10% of quantitative = 4% total)
+
+Lower priority indicator of similar energy.
+
+**Scoring:**
+- Exact match: **80 points**
+- Different: **30 points**
+
+### Qualitative Score (60%)
+
+Uses **Claude AI** to analyze deeper compatibility.
+
+**Analysis Criteria (in priority order):**
+
+1. **Group Size Similarity** (HIGHEST PRIORITY)
+   - Same/similar sizes (diff ≤ 1): Start at **70-100 base**
+   - Moderate difference (2-3): Start at **50-70 base**
+   - Large difference (4+): Start at **30-50 base**
+
+2. **Shared Interests**
+   - Similar activities, references, values
+   - **+5-15 points** per shared interest
+
+3. **Cultural Fit**
+   - Music compatibility, similar vibes
+   - **+5-10 points**
+
+4. **Complementary Personalities**
+   - Groups that balance each other
+   - **+0-10 points**
+
+**Penalties:**
+- Conflicting vibes: **-5-10 points**
+
+### Final Score Calculation
+
+```
+Final Score = (Quantitative × 40%) + (Qualitative × 60%)
+```
+
+**Example:**
+- Quantitative: 68%
+- Qualitative: 95%
+- Final: (68% × 40%) + (95% × 60%) = **84.2%**
+
+### Running Matching
+
+Matches are **NOT** automatically generated. You must run a matching event:
+
 ```bash
-npm install
+node find-matches.js
 ```
 
-3. Create `.env` file from the template:
+This script:
+1. Clears existing matches
+2. Calculates matches for all groups
+3. Saves all matches to `data/matches.json`
+
+---
+
+## Data Storage
+
+### Files
+
+All data is stored in the `data/` directory:
+
+#### `group-profiles.json`
+
+Completed group profiles:
+
+```json
+{
+  "groups": [
+    {
+      "groupName": "Luker",
+      "answers": {
+        "question1": "Luker",
+        "question2": "3",
+        "question3": "Going to the beach",
+        ...
+      },
+      "id": "group_1234567890_abc123",
+      "createdAt": "2025-12-10T22:03:37.323Z",
+      "profileVersion": "1.0"
+    }
+  ]
+}
+```
+
+#### `interview-state.json`
+
+Current interview state for active chats:
+
+```json
+{
+  "chatId123": {
+    "questionNumber": 5,
+    "groupName": "Luker",
+    "answers": {
+      "question1": "Luker",
+      "question2": "3",
+      ...
+    },
+    "startedAt": "2025-12-10T22:03:37.323Z",
+    "waitingForClarification": false
+  }
+}
+```
+
+#### `matches.json`
+
+Stored match results:
+
+```json
+{
+  "matches": [
+    {
+      "id": "match_1234567890_abc123",
+      "group1Name": "Luker",
+      "group2Name": "Test Group",
+      "group1Id": "group_...",
+      "group2Id": "group_...",
+      "compatibility": {
+        "score": 0.84,
+        "percentage": 84,
+        "breakdown": {
+          "quantitative": 76,
+          "qualitative": 90,
+          "sizeMatch": 100
+        }
+      },
+      "matchedAt": "2025-12-11T02:00:00.000Z",
+      "isBestMatch": true
+    }
+  ]
+}
+```
+
+---
+
+## Installation & Setup
+
+### Prerequisites
+
+- Node.js (v14+)
+- npm or yarn
+- A1Zap account and agent
+- Claude API key
+
+### Installation
+
+1. **Clone/Download the project**
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Create `.env` file:**
+   ```env
+   CLAUDE_API_KEY=your_claude_api_key_here
+   A1ZAP_API_KEY=your_a1zap_api_key_here
+   MANDY_AGENT_ID=your_mandy_agent_id_here
+   ```
+
+4. **Start the server:**
+   ```bash
+   npm start
+   ```
+
+   Server runs on `http://localhost:3000`
+
+5. **Set up webhook:**
+   - Point A1Zap webhook to: `https://your-domain.com/webhook/mandy`
+   - For local testing, use a tunnel (see below)
+
+### Local Testing with Tunnel
+
+**Using Localtunnel:**
 ```bash
-cp .env.example .env
+npm install -g localtunnel
+lt --port 3000
 ```
 
-4. Edit `.env` and add your API keys:
+**Using Cloudflared:**
 ```bash
-CLAUDE_API_KEY=your_claude_key
-A1ZAP_API_KEY=your_a1zap_key
-A1ZAP_AGENT_ID=your_agent_id
-BASE_URL=http://localhost:3000
+cloudflared tunnel --url http://localhost:3000
 ```
 
-5. Start the server:
+Copy the HTTPS URL and use it as your A1Zap webhook URL.
+
+---
+
+## Usage
+
+### Running the Server
+
 ```bash
 npm start
 ```
 
-### 3. Upload a File
+### Viewing Data
 
-Upload a document for your agent to reference:
+**View all group profiles and matches:**
+```bash
+node view-data.js
+```
+
+### Running Matching Events
+
+**Generate and save all matches:**
+```bash
+node find-matches.js
+```
+
+This performs an official matching event:
+1. Clears existing matches
+2. Calculates all matches
+3. Saves results to `data/matches.json`
+
+### Testing
+
+You can test webhooks using curl:
 
 ```bash
-# Upload a file
-npm run upload /path/to/your/file.csv
+# Simulate chat.started event
+curl -X POST http://localhost:3000/webhook/mandy \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "chat.started",
+    "chatId": "test-chat-123",
+    "userId": "user-123",
+    "userName": "Test User"
+  }'
 
-# Or use the sample
-npm run upload files/brandoneats.csv
-```
-
-### 4. Configure A1Zap Webhook
-
-In A1Zap app → Select your agent → Set webhook URL:
-- For generic file operations: `https://your-server.com/webhook/claude`
-- For Brandon Eats data: `https://your-server.com/webhook/brandoneats`
-- For makeup artist (image generation): `https://your-server.com/webhook/makeup-artist`
-- For YC photographer (image generation): `https://your-server.com/webhook/yc-photographer`
-
-### 5. Test It! 🎉
-
-Start chatting with your agent - it will use uploaded files as context!
-
----
-
-## 🎭 Customize Agent Personality
-
-Edit the system prompt in your agent configuration file to change how your agent behaves:
-
-```javascript
-// agents/brandoneats-agent.js or agents/claude-docubot-agent.js
-module.exports = {
-  name: 'Your Agent Name',
-  
-  // 👇 EDIT THIS to customize personality, tone, and behavior
-  systemPrompt: `You are a helpful assistant...
-  
-  Your capabilities:
-  - Analyze data and provide insights
-  - Answer questions based on uploaded files
-  - Be friendly and professional
-  
-  Communication style:
-  - Clear and concise
-  - Use examples when helpful`,
-  
-  generationOptions: {
-    temperature: 0.7,  // 0.0 = factual, 1.0 = creative
-    maxTokens: 4096    // Response length
-  }
-};
-```
-
-**📖 See `docs/AGENT_PERSONALITY_GUIDE.md` for detailed examples and instructions.**
-
----
-
-## 📁 File Management
-
-### Upload Files
-
-```bash
-# Upload and set as base file (used for all responses)
-npm run upload /path/to/document.pdf
-```
-
-Or use the API:
-```javascript
-const { uploadFileToClaude } = require('./services/file-upload');
-
-const result = await uploadFileToClaude('./document.pdf', {
-  setAsBase: true
-});
-```
-
-### Check Files
-
-```bash
-# Check current base file
-curl http://localhost:3000/files/base
-
-# List all uploaded files
-curl http://localhost:3000/files/list
-```
-
-### Supported File Types
-- PDF (`.pdf`)
-- Text files (`.txt`)
-- CSV (`.csv`)
-- JSON (`.json`)
-- Markdown (`.md`)
-- HTML (`.html`)
-- XML (`.xml`)
-
----
-
-## 🎯 Three Specialized Agents
-
-### 1. Generic File Agent (`/webhook/claude`)
-General-purpose document-aware agent:
-- Answer questions about uploaded documents
-- Analyze PDFs, text files, CSV data
-- Context-aware responses based on file content
-
-**Agent Config:** `agents/claude-docubot-agent.js`
-
-### 2. Brandon Eats Data Analyst (`/webhook/brandoneats`)
-Specialized for restaurant/food data:
-- CSV data parsing and analysis
-- **Intelligent filtering system** - only sends relevant responses and social links
-- **Alternative suggestions** - suggests related content when exact matches aren't available
-- Social media link extraction (Instagram, TikTok, YouTube)
-- Rich content responses with embedded media
-- Custom prompts for food industry queries
-
-**Agent Config:** `agents/brandoneats-agent.js`  
-**📖 See `docs/INTELLIGENT_FILTERING.md` for details on the smart triage and filtering system.**  
-**📖 See `docs/ALTERNATIVE_SUGGESTIONS.md` for details on contextual alternative suggestions.**
-
-### 3. Makeup Artist 💄 (`/webhook/makeup-artist`)
-AI makeup artist with image generation capabilities:
-- Apply cosmetic changes to uploaded images using Gemini's image generation
-- **Multi-turn conversations** - iteratively refine makeup looks ("make it darker", "add more blush")
-- Natural language requests (e.g., "add red lipstick", "give me a smokey eye")
-- Professional guidance with helpful examples and suggestions
-- Automatic image storage and delivery
-
-**Agent Config:** `agents/makeup-artist-agent.js`  
-**📖 See `docs/MAKEUP_ARTIST_AGENT.md` for complete documentation and usage examples.**
-
-### 4. YC Photographer 📸 (`/webhook/yc-photographer`)
-Yash the YC Photographer - Places people in iconic Y Combinator settings:
-- Transform photos by placing subjects in front of the **YC sign** or **orange background**
-- **Automatic style detection** based on keywords (sign, entrance, orange, background, etc.)
-- **Two signature styles**: YC office entrance or iconic orange studio background with foam panels
-- **Multi-turn conversations** - apply same style to multiple photos
-- Professional photographer personality with enthusiastic responses
-- Automatic image storage and delivery
-
-**Agent Config:** `agents/yc-photographer-agent.js`  
-**📖 See `docs/YC_PHOTOGRAPHER_AGENT.md` for complete documentation and usage examples.**
-
----
-
-## 🛠️ Project Structure
-
-```
-core/                              # 🆕 Base classes and abstractions
-  ├── BaseAgent.js                 # Abstract agent class
-  ├── BaseWebhook.js               # Abstract webhook handler
-  ├── BaseA1ZapClient.js           # Unified A1Zap client
-  └── AgentRegistry.js             # Central agent registry
-
-agents/                            # Agent configurations
-  ├── claude-docubot-agent.js      # Claude DocuBot (extends BaseAgent)
-  ├── brandoneats-agent.js         # Brandon Eats (extends BaseAgent)
-  ├── makeup-artist-agent.js       # Makeup Artist (extends BaseAgent)
-  └── yc-photographer-agent.js     # YC Photographer (extends BaseAgent)
-
-webhooks/                          # Webhook handlers
-  ├── claude-webhook.js            # Claude handler (extends BaseWebhook)
-  ├── brandoneats-webhook.js       # Brandon Eats handler (extends BaseWebhook)
-  ├── makeup-artist-webhook.js     # Makeup Artist handler (extends BaseWebhook)
-  └── yc-photographer-webhook.js   # YC Photographer handler (extends BaseWebhook)
-
-services/                          # Services and utilities
-  ├── claude-service.js            # Claude API integration
-  ├── gemini-service.js            # Gemini API integration (+ image generation)
-  ├── file-upload.js               # File upload utility
-  ├── file-registry.js             # File storage manager
-  ├── image-storage.js             # Image storage utilities
-  ├── webhook-helpers.js           # Shared webhook utilities
-  ├── conversation-cache.js        # Conversation cache
-  └── social-link-extractor.js     # Social media detection
-
-docs/                              # 🆕 Documentation
-  ├── AGENT_PERSONALITY_GUIDE.md   # Agent customization guide
-  ├── INTELLIGENT_FILTERING.md     # Smart filtering system
-  ├── ALTERNATIVE_SUGGESTIONS.md   # Alternative suggestions
-  ├── MAKEUP_ARTIST_AGENT.md       # Makeup artist docs
-  ├── RICH_CONTENT_GUIDE.md        # Rich content guide
-  ├── SETUP.md                     # Setup and deployment
-  └── [23 more documentation files]
-
-examples/                          # Example scripts
-  ├── upload.js                    # File upload example
-  └── social-shares.js             # Rich content example
-
-tests/                             # Test scripts (24 files)
-
-files/                             # Uploaded files directory
-temp-images/                       # Generated images storage
-config.js                          # Environment configuration
-server.js                          # Main Express server
+# Simulate message.received event
+curl -X POST http://localhost:3000/webhook/mandy \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "message.received",
+    "chatId": "test-chat-123",
+    "messageId": "msg-123",
+    "message": "Luke and Friends",
+    "userId": "user-123",
+    "userName": "Test User"
+  }'
 ```
 
 ---
 
-## 🔧 Configuration
+## File Structure
 
-### Environment Variables
-
-```bash
-# Required
-CLAUDE_API_KEY=sk-ant-...           # Claude API key
-A1ZAP_API_KEY=your-key              # A1Zap API key
-A1ZAP_AGENT_ID=your-agent-id        # A1Zap agent ID
-
-# Optional
-GEMINI_API_KEY=your-key             # Google Gemini API key
-PORT=3000                           # Server port
-BASE_URL=http://localhost:3000      # Public URL
 ```
-
-### Check Configuration
-
-```bash
-npm run check
+a1zap-image-multiturn-agent/
+├── agents/
+│   └── mandy-agent.js          # Mandy's personality and questions
+├── core/
+│   ├── AgentRegistry.js        # Agent registry
+│   ├── BaseAgent.js            # Base agent class
+│   ├── BaseA1ZapClient.js      # A1Zap API client
+│   └── BaseWebhook.js          # Base webhook handler
+├── data/
+│   ├── group-profiles.json     # Completed group profiles
+│   ├── interview-state.json    # Active interview states
+│   └── matches.json            # Stored match results
+├── services/
+│   ├── claude-service.js       # Claude AI service
+│   ├── group-matching.js       # Matching algorithm
+│   ├── group-profile-storage.js # Data storage service
+│   └── webhook-helpers.js      # Webhook utilities
+├── webhooks/
+│   └── mandy-webhook.js        # Mandy webhook handler
+├── config.js                   # Configuration
+├── server.js                   # Express server
+├── view-data.js               # Data viewer utility
+├── find-matches.js            # Matching event script
+├── package.json
+└── README.md
 ```
-
-Shows status of all API keys and configurations.
 
 ---
 
-## 🎨 Rich Content Support
+## API Reference
 
-The Brandon Eats agent supports rich content:
+### Webhook Endpoints
 
-### Social Media Embeds
-Send social media posts with automatic embedding:
+#### `POST /webhook/mandy`
 
-```javascript
-const richContentBlocks = [
-  {
-    type: 'social_share',
-    data: {
-      platform: 'instagram',
-      url: 'https://www.instagram.com/reel/...'
-    },
-    order: 0
-  },
-  {
-    type: 'social_share',
-    data: {
-      platform: 'tiktok',
-      url: 'https://www.tiktok.com/@user/video/...'
-    },
-    order: 1
-  }
-];
+Main webhook endpoint for Mandy.
 
-await brandonEatsClient.sendMessage(chatId, 'Check out these videos!', richContentBlocks);
+**Events:**
+- `chat.started`: User starts a chat
+- `message.received`: User sends a message
+
+**Response:**
+```json
+{
+  "success": true,
+  "agent": "mandy",
+  "processing": true,
+  "messageId": "msg-123"
+}
 ```
-
-**📖 See `docs/RICH_CONTENT_GUIDE.md` for more rich content types.**
-
----
-
-## 🚀 Advanced Features
-
-### 🎉 Welcome Messages (New!)
-
-All agents now automatically send personalized welcome messages when users start a new chat:
-
-- **Personalized greetings** - Uses first name when available
-- **Agent-specific content** - Each agent explains its unique capabilities
-- **Call to action** - Prompts users with examples and suggestions
-- **Automatic detection** - Triggers on A1Zap's `chat.started` event
-
-```javascript
-// User starts chat → Receives welcome message
-"Hey John! 👋
-
-I'm Brandy, representing Brandon from @brandneweats! 🍜
-
-I'm your AI guide to Brandon's favorite Vietnamese food spots...
-
-What are you craving, or where are you headed?"
-```
-
-**Test it:**
-```bash
-node tests/test-chat-started.js
-```
-
-**📖 See `docs/CHAT_STARTED_IMPLEMENTATION.md` for complete documentation.**
-
-### Intelligent Filtering & Social Link Extraction
-
-The Brandon Eats agent uses a sophisticated multi-stage filtering system:
-
-1. **Off-Topic Triage**: Filters out irrelevant questions (weather, sports, etc.) before processing
-2. **Smart Social Links**: Only sends TikTok videos when specific restaurants are discussed
-3. **Alternative Suggestions**: When exact matches aren't available, suggests relevant alternatives with context
-
-```javascript
-// User: "I want restaurants over $100"
-// Bot: "Brandon doesn't cover high-end dining, he focuses on street food..."
-// Follow-up: "💡 These are Brandon's most elevated dining experiences..."
-//            [Sends 2-3 TikTok links with context]
-```
-
-**Benefits:**
-- Saves API costs by avoiding unnecessary processing
-- Users only get relevant social media links
-- **Even "not found" responses now provide helpful alternatives**
-- Clear boundaries about bot's purpose
-- Assumes user intent for food/travel questions
-
-### Conversation History
-
-Both agents maintain conversation context:
-- Last 10 messages are retrieved automatically
-- User names are included for multi-user chats
-- History is passed to Claude for contextual responses
-
-### Message Deduplication
-
-Built-in duplicate message detection prevents double-processing:
-- 5-minute deduplication window
-- Automatic cleanup of old entries
-- Race condition protection
-
----
-
-## 📝 API Endpoints
-
-### Webhooks
-- `POST /webhook/claude` - Generic file-aware agent
-- `POST /webhook/brandoneats` - Brandon Eats specialized agent
-
-### File Management
-- `GET /files/base` - Get current base file info
-- `GET /files/list` - List all uploaded files
 
 ### Health Check
-- `GET /health` - Server health status
 
----
+#### `GET /health`
 
-## 🎯 Use Cases
+Returns server health status.
 
-### Generic File Agent
-- **Company Knowledge Base**: Upload employee handbooks
-- **Product Support**: Upload user manuals
-- **Research Assistant**: Upload research papers
-- **Legal Q&A**: Upload contracts and policies
-- **Course Materials**: Upload textbooks and study guides
-- **API Documentation**: Upload technical docs
-
-### Brandon Eats Agent
-- **Restaurant Discovery**: Find restaurants by cuisine/location
-- **Data Analysis**: Analyze ratings, prices, menu items
-- **Social Media Tracking**: Monitor restaurant social presence
-- **Menu Insights**: Answer questions about dishes
-- **Data Enrichment**: Add information to restaurant databases
-
----
-
-## 🐛 Troubleshooting
-
-**Agent not responding?**
-- Check server logs for errors
-- Verify environment variables: `npm run check`
-- Test health endpoint: `https://your-server.com/health`
-
-**Claude errors?**
-- Verify API key at [Anthropic Console](https://console.anthropic.com/)
-- Ensure you have Files API access
-
-**File upload not working?**
-- Check file type is supported
-- Verify Claude API key is set
-- Check file size limits
-
-**Agent not using document context?**
-- Verify base file is set: `GET /files/base`
-- Ensure you uploaded with `setAsBase: true`
-- Check you're using the correct webhook endpoint
-
----
-
-## 📚 Documentation
-
-- `docs/AGENT_PERSONALITY_GUIDE.md` - Customize agent personality and behavior
-- `docs/INTELLIGENT_FILTERING.md` - Smart triage and social link filtering system
-- `docs/ALTERNATIVE_SUGGESTIONS.md` - Contextual alternative suggestions when exact matches aren't found
-- `docs/RICH_CONTENT_GUIDE.md` - Rich content formatting and social embeds
-- `docs/SETUP.md` - Complete setup and deployment guide
-
----
-
-## 🔗 Useful Commands
-
-```bash
-# Check configuration
-npm run check
-
-# Upload a file
-npm run upload /path/to/file.csv
-
-# Start server
-npm start
-
-# Development mode (auto-restart)
-npm run dev
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-12-11T02:00:00.000Z",
+  "config": {
+    "hasClaudeApiKey": true,
+    "hasA1ZapApiKey": true
+  }
+}
 ```
 
 ---
 
-## 📖 Learn More
+## Key Concepts
 
-- [Claude API Documentation](https://docs.anthropic.com/)
-- [Claude Files API](https://docs.anthropic.com/en/api/files-create)
-- [Gemini API Documentation](https://ai.google.dev/docs)
-- [A1Zap Documentation](https://a1zap.com/docs)
+### Interview State
+
+Tracks where each chat is in the interview process:
+
+- `questionNumber`: Current question (1-10)
+- `answers`: Collected answers so far
+- `groupName`: Group name (set in question 1)
+- `waitingForClarification`: Whether waiting for clarification
+- `clarificationQuestion`: Question to ask for clarification
+
+### Deduplication
+
+Prevents processing the same message twice:
+- Messages are marked as processed after response is sent
+- Duplicate webhook calls are ignored
+- Based on `messageId` from A1Zap
+
+### Timeout Protection
+
+All AI calls have timeout protection:
+- Acknowledgment generation: 4-6 seconds
+- Answer validation: 5 seconds
+- History fetch: 5 seconds
+- Overall processing: 12 seconds
+
+If timeouts occur, system falls back to simpler responses.
+
+### Error Handling
+
+Robust error handling ensures Mandy never freezes:
+- Try-catch blocks around all AI calls
+- Fallback responses if AI fails
+- Logging for debugging
+- Graceful degradation
 
 ---
 
-## 📄 License
+## Troubleshooting
 
-This project is open source and available under the MIT License.
+### Mandy Not Responding
+
+1. Check server logs for errors
+2. Verify `.env` file has correct API keys
+3. Check A1Zap webhook URL is correct
+4. Verify server is running and accessible
+
+### Matches Not Showing
+
+1. Run `node find-matches.js` to generate matches
+2. Check `data/matches.json` file exists
+3. Verify groups completed all 10 questions
+
+### Interview Stuck
+
+1. Check `data/interview-state.json` for stuck states
+2. Manually clear state if needed
+3. Check logs for validation errors
 
 ---
 
-## 🤝 Contributing
+## License
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-**Ready to build intelligent file-aware agents? Get started in 5 minutes!** 🚀
+See LICENSE file for details.

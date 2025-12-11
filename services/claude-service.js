@@ -1,8 +1,5 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const config = require('../config');
-const fileRegistry = require('./file-registry');
-const fs = require('fs');
-const path = require('path');
 
 class ClaudeService {
   constructor() {
@@ -28,39 +25,7 @@ class ClaudeService {
         }
       ];
 
-      // Add file reference if provided
-      if (options.fileId) {
-        // Get file info from registry
-        const fileInfo = fileRegistry.getFileById(options.fileId);
-        
-        if (fileInfo) {
-          // Try to read from originalPath first, then try relative path
-          let fileContent = null;
-          let filePath = null;
-          
-          if (fileInfo.originalPath && fs.existsSync(fileInfo.originalPath)) {
-            filePath = fileInfo.originalPath;
-          } else if (fileInfo.filename) {
-            // Try relative path from project root
-            const relativePath = path.join(__dirname, '..', 'files', fileInfo.filename);
-            if (fs.existsSync(relativePath)) {
-              filePath = relativePath;
-            }
-          }
-          
-          if (filePath) {
-            // CSV files are not supported as document blocks per Files API docs
-            // Read and include content directly as text
-            fileContent = fs.readFileSync(filePath, 'utf-8');
-            messages[0].content = `Here's the data file (${fileInfo.filename}):\n\n${fileContent}\n\n---\n\n${prompt}`;
-            console.log(`✅ Loaded file content from: ${filePath}`);
-          } else {
-            console.warn(`⚠️  File not found for ID: ${options.fileId} (tried: ${fileInfo.originalPath}, files/${fileInfo.filename})`);
-          }
-        } else {
-          console.warn(`⚠️  File metadata not found for ID: ${options.fileId}`);
-        }
-      }
+      // File support removed - Mandy doesn't use file references
 
       const response = await this.client.messages.create({
         model: options.model || config.claude.defaultModel,
@@ -91,44 +56,7 @@ class ClaudeService {
       const claudeMessages = messages.map((msg, index) => {
         const isLastMessage = index === messages.length - 1;
         
-        // Add file reference to the last user message if fileId is provided
-        if (isLastMessage && msg.role === 'user' && options.fileId) {
-          // Get file info from registry
-          const fileInfo = fileRegistry.getFileById(options.fileId);
-          
-          if (fileInfo) {
-            // Try to read from originalPath first, then try relative path
-            let fileContent = null;
-            let filePath = null;
-            
-            if (fileInfo.originalPath && fs.existsSync(fileInfo.originalPath)) {
-              filePath = fileInfo.originalPath;
-            } else if (fileInfo.filename) {
-              // Try relative path from project root
-              const relativePath = path.join(__dirname, '..', 'files', fileInfo.filename);
-              if (fs.existsSync(relativePath)) {
-                filePath = relativePath;
-              }
-            }
-            
-            if (filePath) {
-              // CSV files are not supported as document blocks per Files API docs
-              // Read and include content directly as text
-              fileContent = fs.readFileSync(filePath, 'utf-8');
-              const messageText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-              console.log(`✅ Loaded file content from: ${filePath}`);
-              
-              return {
-                role: msg.role,
-                content: `Here's the data file (${fileInfo.filename}):\n\n${fileContent}\n\n---\n\n${messageText}`
-              };
-            } else {
-              console.warn(`⚠️  File not found for ID: ${options.fileId} (tried: ${fileInfo.originalPath}, files/${fileInfo.filename})`);
-            }
-          } else {
-            console.warn(`⚠️  File metadata not found for ID: ${options.fileId}`);
-          }
-        }
+        // File support removed - Mandy doesn't use file references
 
         // Handle messages that might already have complex content structures
         const content = typeof msg.content === 'string' ? msg.content : msg.content;
@@ -155,52 +83,14 @@ class ClaudeService {
   }
 
   /**
-   * Get the base file ID from registry
-   * @param {string} agentName - Optional agent name to get specific agent's file
-   * @returns {string|null} Base file ID
-   */
-  getBaseFileId(agentName = null) {
-    return fileRegistry.getBaseFile(agentName);
-  }
-
-  /**
-   * Generate response with automatic base file inclusion
-   * @param {string} prompt - User prompt
-   * @param {Object} options - Generation options
-   * @param {string} options.agentName - Optional agent name for file lookup
-   * @returns {Promise<string>} Generated response
-   */
-  async generateWithBaseFile(prompt, options = {}) {
-    const baseFileId = this.getBaseFileId(options.agentName);
-    
-    if (!baseFileId) {
-      console.warn('⚠️  No base file set. Generating response without file context.');
-    }
-
-    return this.generateText(prompt, {
-      ...options,
-      fileId: baseFileId
-    });
-  }
-
-  /**
-   * Chat with automatic base file inclusion
+   * Chat with base file (for compatibility - Mandy doesn't use files)
    * @param {Array} messages - Message history
    * @param {Object} options - Generation options
-   * @param {string} options.agentName - Optional agent name for file lookup
    * @returns {Promise<string>} Generated response
    */
   async chatWithBaseFile(messages, options = {}) {
-    const baseFileId = this.getBaseFileId(options.agentName);
-    
-    if (!baseFileId) {
-      console.warn('⚠️  No base file set. Generating response without file context.');
-    }
-
-    return this.chat(messages, {
-      ...options,
-      fileId: baseFileId
-    });
+    // Mandy doesn't use file references, so just call regular chat
+    return this.chat(messages, options);
   }
 }
 

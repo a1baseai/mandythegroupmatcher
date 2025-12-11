@@ -1,13 +1,14 @@
 {
-  "name": "ai-agent-file-context",
-  "version": "2.0.0",
-  "description": "AI agent system with file context support - Create intelligent agents that analyze documents and data using Claude and Gemini",
+  "name": "mandy-group-matchmaker",
+  "version": "1.0.0",
+  "description": "Mandy the Group Matchmaker - AI-powered group matching system that interviews groups and finds compatible matches",
   "main": "server.js",
   "scripts": {
-    "start": "dotenvx run -f .env -- node server.js",
-    "dev": "dotenvx run -f .env -- nodemon server.js",
-    "check": "dotenvx run -f .env -- node check-config.js",
-    "upload": "dotenvx run -f .env -- node examples/upload.js"
+    "start": "npx @dotenvx/dotenvx run -f .env -- node server.js",
+    "dev": "npx @dotenvx/dotenvx run -f .env -- nodemon server.js",
+    "check": "npx @dotenvx/dotenvx run -f .env -- node check-config.js",
+    "test-connections": "npx @dotenvx/dotenvx run -f .env -- node test-connections.js",
+    "upload": "npx @dotenvx/dotenvx run -f .env -- node examples/upload.js"
   },
   "repository": {
     "type": "git",
