@@ -60,8 +60,10 @@ app.get('/', (req, res) => {
 app.post('/webhook/mandy', mandyWebhookHandler);
 
 // Start server
-const PORT = config.server.port || 3000;
-const HOST = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+// Railway sets PORT automatically, default to 3000 for local dev
+const PORT = process.env.PORT || config.server.port || 3000;
+// Listen on all interfaces for Railway/production, localhost for dev
+const HOST = process.env.PORT ? '0.0.0.0' : 'localhost';
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`\n🚀 Mandy the Group Matchmaker running on http://${HOST}:${PORT}`);
