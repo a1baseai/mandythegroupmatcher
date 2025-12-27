@@ -236,7 +236,6 @@ app.get('/api/groups', (req, res) => {
     });
   }
 });
-
 // Start server
 // Railway sets PORT automatically, default to 3000 for local dev
 const PORT = process.env.PORT || config.server.port || 3000;
@@ -285,3 +284,4 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
+
