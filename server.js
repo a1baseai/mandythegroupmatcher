@@ -225,13 +225,101 @@ app.get('/api/groups', (req, res) => {
         groupName: g.groupName,
         id: g.id,
         size: g.answers?.question2 || g.q2 || 'N/A',
-        createdAt: g.createdAt
+        createdAt: g.createdAt,
+        hasMiniAppSessions: !!(g.miniAppSessions && Object.keys(g.miniAppSessions).length > 0),
+        hasMiniAppData: !!(g.miniAppData && Object.keys(g.miniAppData).length > 0)
       }))
     });
   } catch (error) {
     console.error('❌ Error fetching groups:', error);
     res.status(500).json({
       error: 'Failed to fetch groups',
+      message: error.message
+    });
+  }
+});
+
+// Sync mini app data endpoint - manually trigger sync for a chat
+app.post('/api/sync-mini-app-data/:chatId', async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const mandyWebhookModule = require('./webhooks/mandy-webhook');
+    const mandyWebhook = mandyWebhookModule.instance;
+    
+    if (!mandyWebhook || !mandyWebhook.syncMiniAppData) {
+      return res.status(500).json({
+        error: 'Webhook instance not available',
+        message: 'Cannot access syncMiniAppData method'
+      });
+    }
+    
+    const miniAppData = await mandyWebhook.syncMiniAppData(chatId);
+    
+    if (miniAppData) {
+      res.json({
+        success: true,
+        message: 'Mini app data synced successfully',
+        chatId,
+        miniAppData,
+        syncedAt: new Date().toISOString()
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'No mini app sessions found for this chat',
+        chatId
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error syncing mini app data:', error);
+    res.status(500).json({
+      error: 'Failed to sync mini app data',
+      message: error.message
+    });
+  }
+});
+
+// Poll and create profile from mini apps endpoint
+app.post('/api/poll-mini-apps/:chatId', async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const mandyWebhookModule = require('./webhooks/mandy-webhook');
+    const mandyWebhook = mandyWebhookModule.instance;
+    
+    if (!mandyWebhook || !mandyWebhook.pollAndCreateProfileFromMiniApps) {
+      return res.status(500).json({
+        error: 'Webhook instance not available'
+      });
+    }
+    
+    const groupProfileStorage = require('./services/group-profile-storage');
+    const interviewState = groupProfileStorage.getInterviewState(chatId);
+    const groupName = interviewState?.groupName || 'Unknown';
+    
+    const profile = await mandyWebhook.pollAndCreateProfileFromMiniApps(chatId, groupName);
+    
+    if (profile) {
+      res.json({
+        success: true,
+        message: 'Profile created from mini app data',
+        chatId,
+        profile: {
+          groupName: profile.groupName,
+          id: profile.id,
+          hasMiniAppData: !!(profile.miniAppData && Object.keys(profile.miniAppData).length > 0)
+        }
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'Not enough mini app data yet or profile already exists',
+        chatId
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error polling mini apps:', error);
+    res.status(500).json({
+      error: 'Failed to poll mini apps',
       message: error.message
     });
   }
@@ -256,6 +344,8 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`  GET/POST /api/match               - Run matching algorithm (clickable!)`);
   console.log(`  GET  /api/matches                 - Get all saved matches`);
   console.log(`  GET  /api/groups                  - Get all group profiles`);
+  console.log(`  POST /api/sync-mini-app-data/:chatId - Sync mini app data for a chat`);
+  console.log(`  POST /api/poll-mini-apps/:chatId - Poll mini apps and create profile`);
   console.log(`\nConfiguration:`);
   console.log(`  Claude API: ${config.claude.apiKey && !config.claude.apiKey.includes('your_') ? '✅ Configured' : '❌ Not configured'}`);
   console.log(`  A1Zap API: ${config.a1zap.apiKey && !config.a1zap.apiKey.includes('your_') ? '✅ Configured' : '❌ Not configured'}`);

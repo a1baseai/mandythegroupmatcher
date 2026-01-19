@@ -224,13 +224,37 @@ async function calculateQualitativeScore(group1, group2) {
   const size1 = size1Raw ? parseInt(size1Raw.toString().match(/\d+/)?.[0] || size1Raw) || 0 : 0;
   const size2 = size2Raw ? parseInt(size2Raw.toString().match(/\d+/)?.[0] || size2Raw) || 0 : 0;
   
+  // Extract mini app data if available
+  const miniAppData1 = group1.miniAppData || {};
+  const miniAppData2 = group2.miniAppData || {};
+  const hasMiniAppData1 = Object.keys(miniAppData1).length > 0;
+  const hasMiniAppData2 = Object.keys(miniAppData2).length > 0;
+  
+  let miniAppSection = '';
+  if (hasMiniAppData1 || hasMiniAppData2) {
+    miniAppSection = '\n\nMINI APP DATA (if available, use this to find shared preferences/behaviors):\n';
+    if (hasMiniAppData1) {
+      miniAppSection += `Group 1 Mini App Data: ${JSON.stringify(miniAppData1, null, 2)}\n`;
+    } else {
+      miniAppSection += 'Group 1: No mini app data available\n';
+    }
+    if (hasMiniAppData2) {
+      miniAppSection += `Group 2 Mini App Data: ${JSON.stringify(miniAppData2, null, 2)}\n`;
+    } else {
+      miniAppSection += 'Group 2: No mini app data available\n';
+    }
+    miniAppSection += '- Look for shared preferences, similar choices, or complementary behaviors in mini app data\n';
+    miniAppSection += '- If both groups have mini app data, add +5-20 points for strong alignment\n';
+  }
+  
   const comparisonPrompt = `You are analyzing two groups for compatibility in a matchmaking system (like blocking groups at Harvard).
 
 CRITICAL PRIORITIES (in order):
 1. Group Size Similarity - Groups with similar sizes should score MUCH higher (e.g., 3 vs 3 = excellent, 3 vs 4 = very good, 3 vs 8 = poor)
 2. Shared Interests - Groups with similar interests (music, activities, references) should score higher
-3. Cultural Fit - Similar vibes, energy levels, and values
-4. Complementary Personalities - Groups that would balance each other well
+3. Mini App Data Alignment - If both groups have mini app data, use it to find shared preferences and behaviors
+4. Cultural Fit - Similar vibes, energy levels, and values
+5. Complementary Personalities - Groups that would balance each other well
 
 Group 1:
 - Name: ${group1.groupName}
@@ -254,13 +278,14 @@ Group 2:
 - Origin Story: ${getAnswer(group2, 7) || 'N/A'}
 - Emoji: ${getAnswer(group2, 8) || 'N/A'}
 - Roman Empire: ${getAnswer(group2, 9) || 'N/A'}
-- Side Quest: ${getAnswer(group2, 10) || 'N/A'}
+- Side Quest: ${getAnswer(group2, 10) || 'N/A'}${miniAppSection}
 
 SCORING GUIDELINES:
 - Groups with same/similar sizes (difference ≤ 1): Start at 70-100 base
 - Groups with moderate size difference (2-3): Start at 50-70 base
 - Groups with large size difference (4+): Start at 30-50 base, reduce further if interests don't align
 - Add points for shared interests (music, activities, references): +5-15 points each
+- Add points for mini app data alignment (if both have data): +5-20 points
 - Add points for cultural fit: +5-10 points
 - Subtract points for conflicting vibes: -5-10 points
 

@@ -81,7 +81,13 @@ module.exports = {
       apiKey: process.env.A1ZAP_API_KEY || 'your_a1zap_api_key_here',
       agentId: process.env.MANDY_AGENT_ID || 'your_mandy_agent_id_here',
       apiUrl: 'https://api.a1zap.com/v1/messages/individual',
-      agentName: 'mandy'
+      agentName: 'mandy',
+      // Mini App configuration
+      miniApps: {
+        'miniApp1': process.env.MINI_APP_1_ID || 'xs7c6vx1t5ch4gkmkbcmjctwpx7z8hhv',
+        // Add more mini apps as needed
+        // Example: 'wouldYouRather': process.env.WYR_MINI_APP_ID || 'your_wyr_app_id',
+      }
     }
   },
 

@@ -190,6 +190,32 @@ function getProfileByChatId(chatId) {
 }
 
 /**
+ * Update an existing profile
+ * @param {string} chatId - Chat ID
+ * @param {Object} updates - Fields to update
+ * @returns {Object|null} Updated profile or null if not found
+ */
+function updateProfile(chatId, updates) {
+  const profiles = loadProfiles();
+  const profileIndex = profiles.groups.findIndex(g => g.chatId === chatId);
+  
+  if (profileIndex === -1) {
+    return null;
+  }
+  
+  // Merge updates
+  profiles.groups[profileIndex] = {
+    ...profiles.groups[profileIndex],
+    ...updates,
+    updatedAt: new Date().toISOString()
+  };
+  
+  saveProfiles(profiles);
+  console.log(`✅ Updated profile for chat ${chatId}`);
+  return profiles.groups[profileIndex];
+}
+
+/**
  * Load matches from file
  * @returns {Object} { matches: Array }
  */
@@ -404,6 +430,7 @@ module.exports = {
   getAllProfiles,
   getProfileByGroupName,
   getProfileByChatId,
+  updateProfile,
   saveMatch,
   getAllMatches,
   getMatchesForGroup,
