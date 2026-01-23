@@ -64,12 +64,22 @@ class MandyWebhook extends BaseWebhook {
 
       console.log(`👋 [Mandy] Chat started with user: ${userName || 'Anonymous'} (chatId: ${chatId})`);
 
+      // Generate unique ID for this chat session
+      const sessionId = `mandy-${chatId}-${Date.now()}`;
+      console.log(`🆔 [Mandy] Generated session ID: ${sessionId}`);
+
+      // Initialize interview state with session ID (no group name needed)
+      groupProfileStorage.setInterviewState(chatId, {
+        sessionId,
+        createdAt: new Date().toISOString()
+      });
+
       // Get welcome message from agent
       const welcomeMessage = this.agent.getWelcomeMessage(userName, isAnonymous);
       console.log(`💬 [Mandy] Welcome message prepared (${welcomeMessage.length} chars):`);
       console.log(`   "${welcomeMessage.substring(0, 100)}..."\n`);
 
-      // Send welcome message as the opening message (skip if test mode)
+      // Send welcome message and immediately share mini apps (skip if test mode)
       if (!webhookHelpers.isTestChat(chatId)) {
         try {
           console.log(`📤 [Mandy] Attempting to send welcome message to chatId: ${chatId}`);
@@ -79,10 +89,20 @@ class MandyWebhook extends BaseWebhook {
           console.log(`   Welcome message length: ${welcomeMessage.length} chars\n`);
           
           const sendResult = await this.client.sendMessage(chatId, welcomeMessage);
-        console.log('✅ [Mandy] Opening welcome message sent successfully!');
-        console.log(`   Message: "${welcomeMessage.substring(0, 80)}..."`);
+          console.log('✅ [Mandy] Opening welcome message sent successfully!');
+          console.log(`   Message: "${welcomeMessage.substring(0, 80)}..."`);
           console.log(`   API Response:`, sendResult ? JSON.stringify(sendResult, null, 2) : 'No response data');
           console.log('');
+
+          // Immediately share mini apps after welcome message
+          console.log(`🎮 [Mandy] Sharing mini apps immediately after welcome...`);
+          try {
+            await this.shareAllMiniApps(chatId, sessionId);
+            console.log(`✅ [Mandy] Mini apps shared successfully`);
+          } catch (miniAppError) {
+            console.error(`❌ [Mandy] Error sharing mini apps:`, miniAppError.message);
+            // Don't fail the whole request if mini apps fail
+          }
         
         // Mark as sent so we don't send it again on first user message
         if (!this.welcomeMessagesSent) {
@@ -289,44 +309,25 @@ class MandyWebhook extends BaseWebhook {
         };
       }
       
-      // NEW FLOW: Check if we have group name (check both conversation and interview state)
-      const groupName = this.extractGroupName(conversation, chatId);
-      const hasGroupName = !!groupName;
-      
-      // Check if mini apps have been shared
+      // NEW FLOW: Check if mini apps have been shared
       const interviewState = groupProfileStorage.getInterviewState(chatId);
       const miniAppsShared = interviewState?.miniAppsShared || false;
+      let currentSessionId = interviewState?.sessionId;
       
-      if (!hasGroupName) {
-        // Step 1: Ask for group name - keep it simple
-        // ONLY ask if we haven't asked in the last few messages
-        const recentMessages = conversation.slice(-3).filter(m => m.role === 'assistant');
-        const alreadyAsked = recentMessages.some(m => 
-          m.content && m.content.toLowerCase().includes('what should i call')
-        );
-        
-        if (alreadyAsked) {
-          // Already asked recently, just wait for response - don't ask again
-          console.log(`📝 [Mandy] Already asked for group name recently - waiting for response`);
-          return {
-            response: null,
-            sent: true  // Don't send anything, just wait
-          };
-        }
-        
-        console.log(`📝 [Mandy] No group name yet - asking for it`);
-        // Don't generate a long response - just ask for name
-        return {
-          response: `What should I call you/your crew?`,
-          sent: false
-        };
+      // If no interview state exists, create it with session ID
+      if (!interviewState || !currentSessionId) {
+        currentSessionId = `mandy-${chatId}-${Date.now()}`;
+        groupProfileStorage.setInterviewState(chatId, {
+          sessionId: currentSessionId,
+          createdAt: new Date().toISOString()
+        });
       }
       
       if (!miniAppsShared) {
-        // Step 2: We have group name, now share mini apps IMMEDIATELY
-        console.log(`🎮 [Mandy] Group name found: ${groupName} - sharing mini apps NOW`);
+        // Share mini apps IMMEDIATELY (no group name needed)
+        console.log(`🎮 [Mandy] Sharing mini apps NOW`);
         console.log(`  Chat ID: ${chatId}`);
-        console.log(`  Group Name: ${groupName}`);
+        console.log(`  Session ID: ${sessionId}`);
         
         // Check if mini apps are configured
         const miniApps = config.agents.mandy.miniApps || {};
@@ -342,8 +343,10 @@ class MandyWebhook extends BaseWebhook {
         }
         
         // Mark as shared FIRST to prevent duplicate calls
+        const currentState = groupProfileStorage.getInterviewState(chatId) || {};
         groupProfileStorage.setInterviewState(chatId, {
-          groupName,
+          ...currentState,
+          sessionId: currentSessionId,
           miniAppsShared: true,
           sharedAt: new Date().toISOString()
         });
@@ -351,7 +354,7 @@ class MandyWebhook extends BaseWebhook {
         // Share mini apps and wait for it to complete
         try {
           console.log(`  Attempting to share ${availableApps.length} mini app(s)...`);
-          await this.shareAllMiniApps(chatId, groupName);
+          await this.shareAllMiniApps(chatId, currentSessionId);
           console.log(`  ✅ Mini apps shared successfully`);
           // Links are already sent by shareAllMiniApps, so mark as sent to prevent double message
           // Return null response to prevent base webhook from sending anything
@@ -391,8 +394,12 @@ class MandyWebhook extends BaseWebhook {
       // Step 3: Mini apps shared, poll for data and create profile
       console.log(`📊 [Mandy] Mini apps shared - checking for data and creating profile`);
       
+      // Get session ID from interview state
+      const currentState = groupProfileStorage.getInterviewState(chatId) || {};
+      const pollSessionId = currentState.sessionId || `mandy-${chatId}-${Date.now()}`;
+      
       // Poll for data and create profile in background
-      this.pollAndCreateProfileFromMiniApps(chatId, groupName).catch(err => {
+      this.pollAndCreateProfileFromMiniApps(chatId, pollSessionId).catch(err => {
         console.error(`❌ [Mandy] Error creating profile from mini apps:`, err);
       });
       
@@ -762,10 +769,10 @@ Return ONLY valid JSON, no other text.`;
   /**
    * Share all configured mini apps with a group
    * @param {string} chatId - Chat ID
-   * @param {string} groupName - Group name
+   * @param {string} sessionId - Session ID (replaces groupName)
    * @returns {Promise<Array>} Array of created sessions
    */
-  async shareAllMiniApps(chatId, groupName) {
+  async shareAllMiniApps(chatId, sessionId) {
     try {
       const miniApps = config.agents.mandy.miniApps || {};
       const availableApps = Object.entries(miniApps).filter(([_, appId]) => appId && !appId.includes('your_'));
@@ -775,27 +782,45 @@ Return ONLY valid JSON, no other text.`;
         return [];
       }
       
-      console.log(`🎮 [Mandy] Sharing ${availableApps.length} mini app(s) for ${groupName}`);
+      console.log(`🎮 [Mandy] Sharing ${availableApps.length} mini app(s) for session ${sessionId}`);
       
       const sessions = [];
-      const shareUrls = [];
       
       // Create sessions for all mini apps
       for (const [appName, appId] of availableApps) {
         try {
-          const sessionName = `${groupName}'s ${appName}`;
+          const sessionName = `${sessionId} - ${appName}`;
           const session = await this.createMiniAppSession(chatId, appId, sessionName);
           sessions.push(session);
-          shareUrls.push(`\n🎮 ${appName}: ${session.shareUrl}`);
+          console.log(`✅ [Mandy] Created session for ${appName}: instanceId=${session.instanceId}, shareCode=${session.shareCode}`);
         } catch (error) {
           console.error(`❌ [Mandy] Error creating session for ${appName}:`, error);
         }
       }
       
-      // Send message with all links (include group name acknowledgment)
-      if (shareUrls.length > 0) {
-        const message = `Got it, ${groupName}! 🎮\n\nHere's your game:\n${shareUrls.join('\n')}`;
-        await this.client.sendMessage(chatId, message);
+      // Send message with mini app instances as rich content blocks (not URLs)
+      if (sessions.length > 0) {
+        // Fun, conversational message encouraging them to play
+        const messages = [
+          `Alright, I've got some fun games for you! 🎮 These will help me get to know you better - the more you play, the better I can match you!`,
+          `Here are some games I think you'll love! 🎮 Play them when you're ready - they're super fun and will help me find you the perfect matches!`,
+          `I'm sending you some games now! 🎮 They're actually really fun, promise! Play them and I'll learn all about what makes you awesome!`,
+          `Time for some games! 🎮 These are way more fun than answering boring questions - give them a try and help me get to know you!`
+        ];
+        const message = messages[Math.floor(Math.random() * messages.length)];
+        
+        // Create rich content blocks for mini app instances
+        // Format: A1Zap expects micro_app type with instanceId
+        const richContentBlocks = sessions.map((session, index) => ({
+          type: 'micro_app',
+          data: {
+            instanceId: session.instanceId
+          },
+          order: index
+        }));
+        
+        console.log(`📤 [Mandy] Sending ${sessions.length} mini app instance(s) as rich content blocks`);
+        await this.client.sendMessage(chatId, message, richContentBlocks);
       }
       
       return sessions;
@@ -808,10 +833,10 @@ Return ONLY valid JSON, no other text.`;
   /**
    * Poll mini app data and create profile from it
    * @param {string} chatId - Chat ID
-   * @param {string} groupName - Group name
+   * @param {string} sessionId - Session ID (replaces groupName)
    * @returns {Promise<Object|null>} Created profile or null
    */
-  async pollAndCreateProfileFromMiniApps(chatId, groupName) {
+  async pollAndCreateProfileFromMiniApps(chatId, sessionId) {
     try {
       // Get interview state to find mini app sessions
       const interviewState = groupProfileStorage.getInterviewState(chatId);
@@ -823,9 +848,9 @@ Return ONLY valid JSON, no other text.`;
       // Get or create a temporary profile to store session info
       let profile = groupProfileStorage.getProfileByChatId(chatId);
       if (!profile) {
-        // Create temporary profile with just group name
+        // Create temporary profile with session ID
         profile = groupProfileStorage.saveGroupProfile({
-          groupName,
+          sessionId,
           chatId,
           answers: {},
           metadata: {
@@ -840,7 +865,7 @@ Return ONLY valid JSON, no other text.`;
       const miniAppData = await this.syncMiniAppData(chatId);
       
       if (!miniAppData || Object.keys(miniAppData).length === 0) {
-        console.log(`⏳ [Mandy] No mini app data yet for ${groupName} - will check again later`);
+        console.log(`⏳ [Mandy] No mini app data yet for ${sessionId} - will check again later`);
         return null;
       }
       
@@ -848,12 +873,12 @@ Return ONLY valid JSON, no other text.`;
       const hasEnoughData = this.hasEnoughMiniAppData(miniAppData);
       
       if (!hasEnoughData) {
-        console.log(`⏳ [Mandy] Not enough mini app data yet for ${groupName}`);
+        console.log(`⏳ [Mandy] Not enough mini app data yet for ${sessionId}`);
         return null;
       }
       
       // Extract profile from mini app data
-      const extractedProfile = await this.extractProfileFromMiniAppData(groupName, chatId, miniAppData);
+      const extractedProfile = await this.extractProfileFromMiniAppData(sessionId, chatId, miniAppData);
       
       // Update the profile
       const updatedProfile = groupProfileStorage.updateProfile(chatId, {
@@ -865,7 +890,7 @@ Return ONLY valid JSON, no other text.`;
         }
       });
       
-      console.log(`✅ [Mandy] Profile created from mini app data for ${groupName}`);
+      console.log(`✅ [Mandy] Profile created from mini app data for ${sessionId}`);
       
       // Notify user
       await this.client.sendMessage(chatId, `Awesome! I've got enough data from your mini apps to create your profile! 🎉\n\nYou're all set for matching - sit tight and I'll find you some great matches! 💕`);
@@ -891,8 +916,9 @@ Return ONLY valid JSON, no other text.`;
         return null;
       }
       
-      // Extract additional profile data
-      const additionalData = await this.extractProfileFromMiniAppData(profile.groupName, chatId, miniAppData);
+      // Extract additional profile data - use sessionId if available, otherwise use chatId
+      const sessionId = profile.sessionId || profile.groupName || `mandy-${chatId}-${Date.now()}`;
+      const additionalData = await this.extractProfileFromMiniAppData(sessionId, chatId, miniAppData);
       
       // Merge with existing profile
       const updatedProfile = groupProfileStorage.updateProfile(chatId, {
@@ -937,22 +963,22 @@ Return ONLY valid JSON, no other text.`;
 
   /**
    * Extract profile information from mini app data using AI
-   * @param {string} groupName - Group name
+   * @param {string} sessionId - Session ID (replaces groupName)
    * @param {string} chatId - Chat ID
    * @param {Object} miniAppData - Mini app data
    * @returns {Promise<Object>} Extracted profile
    */
-  async extractProfileFromMiniAppData(groupName, chatId, miniAppData) {
+  async extractProfileFromMiniAppData(sessionId, chatId, miniAppData) {
     try {
       const extractPrompt = `Extract group profile information from mini app session data.
 
-Group Name: ${groupName}
+Session ID: ${sessionId}
 
 Mini App Data:
 ${JSON.stringify(miniAppData, null, 2)}
 
 Extract and format as JSON:
-- groupName: The group name
+- sessionId: The session ID (use: ${sessionId})
 - groupSize: Number of people (extract from data if available, or null)
 - answers: Object with key information extracted from mini app responses
   - Use descriptive keys like: preferences, choices, behaviors, interests, etc.
@@ -975,19 +1001,19 @@ Return ONLY valid JSON, no other text.`;
         console.error(`❌ [Mandy] Error parsing extracted profile:`, parseError);
         // Fallback: create basic profile
         profileData = {
-          groupName,
+          sessionId,
           groupSize: null,
           answers: {}
         };
       }
       
       // Ensure required fields
-      if (!profileData.groupName) {
-        profileData.groupName = groupName;
+      if (!profileData.sessionId) {
+        profileData.sessionId = sessionId;
       }
       
       return {
-        groupName: profileData.groupName,
+        sessionId: profileData.sessionId,
         chatId,
         answers: profileData.answers || {},
         miniAppData: miniAppData,
@@ -1000,7 +1026,7 @@ Return ONLY valid JSON, no other text.`;
       console.error(`❌ [Mandy] Error extracting profile from mini app data:`, error);
       // Return basic profile
       return {
-        groupName,
+        sessionId,
         chatId,
         answers: {},
         miniAppData: miniAppData,
