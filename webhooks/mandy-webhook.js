@@ -180,26 +180,38 @@ class MandyWebhook extends BaseWebhook {
   }
 
   /**
-   * Extract group name from conversation
+   * Extract group name from conversation or interview state
    * @param {Array} conversation - Conversation history
+   * @param {string} chatId - Chat ID to check interview state
    * @returns {string|null} Group name or null
    */
-  extractGroupName(conversation) {
+  extractGroupName(conversation, chatId = null) {
+    // First check interview state (most reliable)
+    if (chatId) {
+      const interviewState = groupProfileStorage.getInterviewState(chatId);
+      if (interviewState && interviewState.groupName) {
+        console.log(`✅ [Mandy] Found group name in interview state: ${interviewState.groupName}`);
+        return interviewState.groupName;
+      }
+    }
+    
     if (!conversation || !Array.isArray(conversation)) {
       return null;
     }
     
-    // Look for patterns like "we're called X", "our name is X", "call us X", etc.
-    // Also handle "Just X" or "X and I'm flying solo" patterns
+    // Look for patterns like "we're called X", "our name is X", "call us X", "call me X", etc.
+    // Also handle "Just X" or "X and Friends" patterns
     for (const msg of conversation) {
       if (msg.role === 'user' && msg.content) {
         const content = msg.content.trim();
         const patterns = [
-          /(?:we'?re|we are|our name is|call us|we're called|we go by)\s+([A-Za-z0-9\s]+?)(?:\.|!|\?|$)/i,
-          /(?:name|call us|we're|we are)\s+(?:is|are|:)?\s*([A-Za-z0-9\s]+?)(?:\.|!|\?|$)/i,
-          /^just\s+([A-Za-z0-9\s]+?)(?:\s+and|\s+i'?m|\.|!|\?|$)/i, // "Just Luke and I'm flying solo"
-          /^([A-Za-z0-9\s]{2,30})(?:\s+and|\s+i'?m|\.|!|\?|$)/i, // "Luke and I'm flying solo"
-          /^([A-Za-z0-9\s]{2,30})$/ // Just a name by itself
+          /(?:can\s+you\s+)?call\s+(?:me|us)\s+([A-Za-z0-9\s&]+?)(?:\.|!|\?|$)/i, // "call me Luke", "can you call me Luke"
+          /(?:we'?re|we are|our name is|we're called|we go by)\s+([A-Za-z0-9\s&]+?)(?:\.|!|\?|$)/i, // "we're X", "our name is X"
+          /(?:name|call us|we're|we are)\s+(?:is|are|:)?\s*([A-Za-z0-9\s&]+?)(?:\.|!|\?|$)/i,
+          /^([A-Za-z0-9\s&]{2,50})\s+and\s+friends$/i, // "Luke and Friends"
+          /^just\s+([A-Za-z0-9\s&]+?)(?:\s+and|\s+i'?m|\.|!|\?|$)/i, // "Just Luke and I'm flying solo"
+          /^([A-Za-z0-9\s&]{2,50})(?:\s+and|\s+i'?m|\.|!|\?|$)/i, // "Luke and I'm flying solo"
+          /^([A-Za-z0-9\s&]{2,50})$/ // Just a name by itself
         ];
         
         for (const pattern of patterns) {
@@ -208,7 +220,18 @@ class MandyWebhook extends BaseWebhook {
             let name = match[1].trim();
             // Clean up common suffixes
             name = name.replace(/\s+(and|i'?m|flying|solo).*$/i, '').trim();
+            // Remove "and friends" if it's part of the name (we want to keep it)
+            // Actually, let's keep "and Friends" if it's there
             if (name.length > 1 && name.length < 50) {
+              console.log(`✅ [Mandy] Extracted group name from message: "${name}"`);
+              // Store it in interview state for future reference
+              if (chatId) {
+                const currentState = groupProfileStorage.getInterviewState(chatId) || {};
+                groupProfileStorage.setInterviewState(chatId, {
+                  ...currentState,
+                  groupName: name
+                });
+              }
               return name;
             }
           }
@@ -266,8 +289,8 @@ class MandyWebhook extends BaseWebhook {
         };
       }
       
-      // NEW FLOW: Check if we have group name
-      const groupName = this.extractGroupName(conversation);
+      // NEW FLOW: Check if we have group name (check both conversation and interview state)
+      const groupName = this.extractGroupName(conversation, chatId);
       const hasGroupName = !!groupName;
       
       // Check if mini apps have been shared
@@ -276,6 +299,21 @@ class MandyWebhook extends BaseWebhook {
       
       if (!hasGroupName) {
         // Step 1: Ask for group name - keep it simple
+        // ONLY ask if we haven't asked in the last few messages
+        const recentMessages = conversation.slice(-3).filter(m => m.role === 'assistant');
+        const alreadyAsked = recentMessages.some(m => 
+          m.content && m.content.toLowerCase().includes('what should i call')
+        );
+        
+        if (alreadyAsked) {
+          // Already asked recently, just wait for response - don't ask again
+          console.log(`📝 [Mandy] Already asked for group name recently - waiting for response`);
+          return {
+            response: null,
+            sent: true  // Don't send anything, just wait
+          };
+        }
+        
         console.log(`📝 [Mandy] No group name yet - asking for it`);
         // Don't generate a long response - just ask for name
         return {
@@ -358,12 +396,22 @@ class MandyWebhook extends BaseWebhook {
         console.error(`❌ [Mandy] Error creating profile from mini apps:`, err);
       });
       
-      // Keep response short - they already have the links
+      // Keep response minimal - they already have the links
+      // Only respond if they're asking something specific
       const userMsgLower = userMessage.toLowerCase();
-      if (userMsgLower.includes('link') || userMsgLower.includes('game') || userMsgLower.includes('send')) {
+      if (userMsgLower.includes('link') || userMsgLower.includes('game') || userMsgLower.includes('send') || userMsgLower.includes('where')) {
         return {
           response: `Check above - links are there! 🎮`,
           sent: false
+        };
+      }
+      
+      // For most messages after mini apps are shared, just acknowledge briefly or don't respond
+      // This prevents double messaging
+      if (userMsgLower.length < 20 && (userMsgLower.includes('ok') || userMsgLower.includes('cool') || userMsgLower.includes('thanks') || userMsgLower.includes('got it'))) {
+        return {
+          response: null,
+          sent: true  // Don't send anything for simple acknowledgments
         };
       }
       
@@ -744,9 +792,9 @@ Return ONLY valid JSON, no other text.`;
         }
       }
       
-      // Send message with all links
+      // Send message with all links (include group name acknowledgment)
       if (shareUrls.length > 0) {
-        const message = `Here's your game 🎮\n\n${shareUrls.join('\n')}`;
+        const message = `Got it, ${groupName}! 🎮\n\nHere's your game:\n${shareUrls.join('\n')}`;
         await this.client.sendMessage(chatId, message);
       }
       
