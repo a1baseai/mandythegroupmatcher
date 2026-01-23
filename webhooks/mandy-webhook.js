@@ -316,8 +316,9 @@ class MandyWebhook extends BaseWebhook {
           await this.shareAllMiniApps(chatId, groupName);
           console.log(`  ✅ Mini apps shared successfully`);
           // Links are already sent by shareAllMiniApps, so mark as sent to prevent double message
+          // Return null response to prevent base webhook from sending anything
           return {
-            response: ``,
+            response: null,
             sent: true  // Mark as sent since shareAllMiniApps already sent the message
           };
         } catch (err) {
@@ -1109,7 +1110,7 @@ Return ONLY valid JSON, no other text.`;
 
     // If message was already sent by agent-specific logic, skip sending
     if (result.sent) {
-      console.log('✅ [Mandy] Message already sent by agent logic');
+      console.log('✅ [Mandy] Message already sent by agent logic - skipping');
       return;
     }
 
@@ -1119,43 +1120,33 @@ Return ONLY valid JSON, no other text.`;
       return;
     }
 
+    // If response is null or empty, don't send anything
+    if (!result || !result.response || result.response.trim().length === 0) {
+      console.log('✅ [Mandy] No response to send (null or empty) - skipping');
+      return;
+    }
+
     // CRITICAL: Always send a response to prevent A1Zap from generating its own
-    if (result && result.response) {
-      console.log(`✅ [Mandy] Sending response immediately to prevent A1Zap fallback`);
-      try {
+    console.log(`✅ [Mandy] Sending response immediately to prevent A1Zap fallback`);
+    try {
       await webhookHelpers.sendResponse(
         this.client,
         chatId,
         result.response,
         result.richContentBlocks || null
       );
-      } catch (sendError) {
-        console.error(`❌ [Mandy] Error sending response to A1Zap:`, sendError.message);
-        // Try one more time with a simpler message
-        try {
-          await webhookHelpers.sendResponse(
-            this.client,
-            chatId,
-            "I'm having trouble right now, but I'm here! Could you repeat that? 😊",
-            null
-          );
-        } catch (retryError) {
-          console.error(`❌ [Mandy] Even fallback send failed:`, retryError.message);
-        }
-      }
-    } else {
-      // If no response, send a default to prevent A1Zap fallback
-      console.error(`❌ [Mandy] ERROR: No response in result! Sending fallback.`);
-      console.error(`   Result:`, JSON.stringify(result, null, 2));
+    } catch (sendError) {
+      console.error(`❌ [Mandy] Error sending response to A1Zap:`, sendError.message);
+      // Try one more time with a simpler message
       try {
         await webhookHelpers.sendResponse(
           this.client,
           chatId,
-          "Hmm, I'm having a moment! Could you say that again? 😅",
+          "I'm having trouble right now, but I'm here! Could you repeat that? 😊",
           null
         );
-      } catch (fallbackError) {
-        console.error(`❌ [Mandy] Fallback send also failed:`, fallbackError.message);
+      } catch (retryError) {
+        console.error(`❌ [Mandy] Even fallback send failed:`, retryError.message);
       }
     }
   }
