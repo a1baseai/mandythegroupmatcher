@@ -97,11 +97,27 @@ class MandyWebhook extends BaseWebhook {
           // Immediately share mini apps after welcome message
           console.log(`🎮 [Mandy] Sharing mini apps immediately after welcome...`);
           try {
+            // Mark as shared FIRST to prevent duplicate calls
+            const currentState = groupProfileStorage.getInterviewState(chatId) || {};
+            groupProfileStorage.setInterviewState(chatId, {
+              ...currentState,
+              sessionId,
+              miniAppsShared: true,
+              sharedAt: new Date().toISOString()
+            });
+            
             await this.shareAllMiniApps(chatId, sessionId);
             console.log(`✅ [Mandy] Mini apps shared successfully`);
           } catch (miniAppError) {
             console.error(`❌ [Mandy] Error sharing mini apps:`, miniAppError.message);
-            // Don't fail the whole request if mini apps fail
+            console.error(`   Stack:`, miniAppError.stack);
+            // Reset the flag so we can try again in processRequest
+            const currentState = groupProfileStorage.getInterviewState(chatId) || {};
+            groupProfileStorage.setInterviewState(chatId, {
+              ...currentState,
+              miniAppsShared: false
+            });
+            // Don't fail the whole request if mini apps fail - will retry in processRequest
           }
         
         // Mark as sent so we don't send it again on first user message
@@ -327,7 +343,7 @@ class MandyWebhook extends BaseWebhook {
         // Share mini apps IMMEDIATELY (no group name needed)
         console.log(`🎮 [Mandy] Sharing mini apps NOW`);
         console.log(`  Chat ID: ${chatId}`);
-        console.log(`  Session ID: ${sessionId}`);
+        console.log(`  Session ID: ${currentSessionId}`);
         
         // Check if mini apps are configured
         const miniApps = config.agents.mandy.miniApps || {};
@@ -422,19 +438,21 @@ class MandyWebhook extends BaseWebhook {
         };
       }
       
-      // Otherwise just acknowledge briefly
-      return {
-        response: `Got it 👍`,
-        sent: false
-      };
+      // Otherwise, for normal conversation after mini apps are shared, generate a conversational response
+      // But keep it brief and encourage playing games
+      return await this.generateConversationalResponse(chatId, userMessage, conversation, 0);
       
     } catch (error) {
       // CRITICAL: Always return a response, even on error
       console.error(`❌ [Mandy] Critical error in processRequest:`, error);
+      console.error(`   Error message:`, error.message);
       console.error(`   Stack:`, error.stack);
+      
+      // Don't send error message to avoid double messages - just return null
+      // The error is logged for debugging
       return {
-        response: "Oops! I had a moment there. Let's try again - what were you saying? 😊",
-        sent: false
+        response: null,
+        sent: true  // Don't send anything on error to avoid double messages
       };
     }
   }
