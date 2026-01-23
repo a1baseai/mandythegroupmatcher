@@ -190,19 +190,24 @@ class MandyWebhook extends BaseWebhook {
     }
     
     // Look for patterns like "we're called X", "our name is X", "call us X", etc.
+    // Also handle "Just X" or "X and I'm flying solo" patterns
     for (const msg of conversation) {
       if (msg.role === 'user' && msg.content) {
-        const content = msg.content.toLowerCase();
+        const content = msg.content.trim();
         const patterns = [
           /(?:we'?re|we are|our name is|call us|we're called|we go by)\s+([A-Za-z0-9\s]+?)(?:\.|!|\?|$)/i,
           /(?:name|call us|we're|we are)\s+(?:is|are|:)?\s*([A-Za-z0-9\s]+?)(?:\.|!|\?|$)/i,
+          /^just\s+([A-Za-z0-9\s]+?)(?:\s+and|\s+i'?m|\.|!|\?|$)/i, // "Just Luke and I'm flying solo"
+          /^([A-Za-z0-9\s]{2,30})(?:\s+and|\s+i'?m|\.|!|\?|$)/i, // "Luke and I'm flying solo"
           /^([A-Za-z0-9\s]{2,30})$/ // Just a name by itself
         ];
         
         for (const pattern of patterns) {
-          const match = msg.content.match(pattern);
+          const match = content.match(pattern);
           if (match && match[1]) {
-            const name = match[1].trim();
+            let name = match[1].trim();
+            // Clean up common suffixes
+            name = name.replace(/\s+(and|i'?m|flying|solo).*$/i, '').trim();
             if (name.length > 1 && name.length < 50) {
               return name;
             }
@@ -270,32 +275,78 @@ class MandyWebhook extends BaseWebhook {
       const miniAppsShared = interviewState?.miniAppsShared || false;
       
       if (!hasGroupName) {
-        // Step 1: Ask for group name
+        // Step 1: Ask for group name - keep it simple
         console.log(`📝 [Mandy] No group name yet - asking for it`);
-        const response = await this.generateConversationalResponse(chatId, userMessage, conversation, 0);
-        return response;
+        // Don't generate a long response - just ask for name
+        return {
+          response: `What should I call you/your crew?`,
+          sent: false
+        };
       }
       
       if (!miniAppsShared) {
-        // Step 2: We have group name, now share mini apps
-        console.log(`🎮 [Mandy] Group name found: ${groupName} - sharing mini apps`);
+        // Step 2: We have group name, now share mini apps IMMEDIATELY
+        console.log(`🎮 [Mandy] Group name found: ${groupName} - sharing mini apps NOW`);
+        console.log(`  Chat ID: ${chatId}`);
+        console.log(`  Group Name: ${groupName}`);
         
-        // Share mini apps asynchronously
-        this.shareAllMiniApps(chatId, groupName).catch(err => {
-          console.error(`❌ [Mandy] Error sharing mini apps:`, err);
-        });
+        // Check if mini apps are configured
+        const miniApps = config.agents.mandy.miniApps || {};
+        const availableApps = Object.entries(miniApps).filter(([_, appId]) => appId && !appId.includes('your_'));
+        console.log(`  Available mini apps: ${availableApps.length}`);
         
-        // Mark as shared
+        if (availableApps.length === 0) {
+          console.error(`❌ [Mandy] No mini apps configured!`);
+          return {
+            response: `Oops! I don't have any games set up yet. Let me fix that! 🎮`,
+            sent: false
+          };
+        }
+        
+        // Mark as shared FIRST to prevent duplicate calls
         groupProfileStorage.setInterviewState(chatId, {
           groupName,
           miniAppsShared: true,
           sharedAt: new Date().toISOString()
         });
         
-        return {
-          response: `Perfect! Nice to meet you, ${groupName}! 👋\n\nI've set up some fun mini apps for you to play! These will help me get to know you better for matching. Check out the links I just shared! 🎮\n\nHave fun playing - the more you play, the better I can match you! 😊`,
-          sent: false
-        };
+        // Share mini apps and wait for it to complete
+        try {
+          console.log(`  Attempting to share ${availableApps.length} mini app(s)...`);
+          await this.shareAllMiniApps(chatId, groupName);
+          console.log(`  ✅ Mini apps shared successfully`);
+          // Links are already sent by shareAllMiniApps, so mark as sent to prevent double message
+          return {
+            response: ``,
+            sent: true  // Mark as sent since shareAllMiniApps already sent the message
+          };
+        } catch (err) {
+          console.error(`❌ [Mandy] Error sharing mini apps:`, err);
+          console.error(`  Error message: ${err.message}`);
+          if (err.response) {
+            console.error(`  Status: ${err.response.status}`);
+            console.error(`  Data:`, JSON.stringify(err.response.data, null, 2));
+          }
+          
+          // Check if it's a 500 error (server issue)
+          const isServerError = err.response && err.response.status >= 500;
+          if (isServerError) {
+            console.error(`  ⚠️  This is an A1Zap API server error - the mini app ID might be correct but the API is having issues`);
+          }
+          
+          // Reset the flag so we can try again
+          const state = groupProfileStorage.getInterviewState(chatId);
+          if (state) {
+            state.miniAppsShared = false;
+            groupProfileStorage.setInterviewState(chatId, state);
+          }
+          
+          // Provide helpful error message
+          return {
+            response: `Having trouble setting up the game right now. The API is returning an error. Can you check with A1Zap support? 🎮`,
+            sent: false
+          };
+        }
       }
       
       // Step 3: Mini apps shared, poll for data and create profile
@@ -306,12 +357,20 @@ class MandyWebhook extends BaseWebhook {
         console.error(`❌ [Mandy] Error creating profile from mini apps:`, err);
       });
       
-      // Generate encouraging response
-      const response = await this.generateConversationalResponse(chatId, userMessage, conversation, 0);
+      // Keep response short - they already have the links
+      const userMsgLower = userMessage.toLowerCase();
+      if (userMsgLower.includes('link') || userMsgLower.includes('game') || userMsgLower.includes('send')) {
+        return {
+          response: `Check above - links are there! 🎮`,
+          sent: false
+        };
+      }
       
-      const elapsed = Date.now() - requestStartTime;
-      console.log(`⏱️  [Mandy] Total request processing time: ${elapsed}ms`);
-      return response;
+      // Otherwise just acknowledge briefly
+      return {
+        response: `Got it 👍`,
+        sent: false
+      };
       
     } catch (error) {
       // CRITICAL: Always return a response, even on error
@@ -686,7 +745,7 @@ Return ONLY valid JSON, no other text.`;
       
       // Send message with all links
       if (shareUrls.length > 0) {
-        const message = `Perfect! I've set up ${shareUrls.length} mini app${shareUrls.length > 1 ? 's' : ''} for you to play! 🎮\n\n${shareUrls.join('\n')}\n\nShare these links with your group and have fun! The more you play, the better I can match you! 😊`;
+        const message = `Here's your game 🎮\n\n${shareUrls.join('\n')}`;
         await this.client.sendMessage(chatId, message);
       }
       

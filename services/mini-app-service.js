@@ -26,6 +26,7 @@ class MiniAppService {
    */
   async getOrCreateSession(microAppId, sessionKey, name, initialData = {}) {
     try {
+      // API now requires sessionKey in the body (per updated API)
       const url = `${this.baseUrl}/api/agent-sessions`;
       
       const payload = {
@@ -42,6 +43,7 @@ class MiniAppService {
       console.log(`Micro App ID: ${microAppId}`);
       console.log(`Session Key: ${sessionKey}`);
       console.log(`Name: ${name}`);
+      console.log(`Payload:`, JSON.stringify(payload, null, 2));
       console.log(`${'='.repeat(80)}\n`);
 
       const response = await axios.post(url, payload, {
