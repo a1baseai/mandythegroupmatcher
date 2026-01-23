@@ -347,7 +347,10 @@ class MandyWebhook extends BaseWebhook {
         
         // Check if mini apps are configured
         const miniApps = config.agents.mandy.miniApps || {};
-        const availableApps = Object.entries(miniApps).filter(([_, appId]) => appId && !appId.includes('your_'));
+        const availableApps = Object.entries(miniApps).filter(([_, appConfig]) => {
+          const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
+          return appId && !appId.includes('your_');
+        });
         console.log(`  Available mini apps: ${availableApps.length}`);
         
         if (availableApps.length === 0) {
@@ -788,12 +791,17 @@ Return ONLY valid JSON, no other text.`;
    * Share all configured mini apps with a group
    * @param {string} chatId - Chat ID
    * @param {string} sessionId - Session ID (replaces groupName)
-   * @returns {Promise<Array>} Array of created sessions
+   * @returns {Promise<Array>} Array of created sessions with metadata
    */
   async shareAllMiniApps(chatId, sessionId) {
     try {
       const miniApps = config.agents.mandy.miniApps || {};
-      const availableApps = Object.entries(miniApps).filter(([_, appId]) => appId && !appId.includes('your_'));
+      // Filter for properly configured mini apps (new format with id, handle, name)
+      const availableApps = Object.entries(miniApps).filter(([_, appConfig]) => {
+        // Support both old format (string) and new format (object with id)
+        const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
+        return appId && !appId.includes('your_');
+      });
       
       if (availableApps.length === 0) {
         console.warn(`⚠️  [Mandy] No mini apps configured - cannot share`);
@@ -802,22 +810,39 @@ Return ONLY valid JSON, no other text.`;
       
       console.log(`🎮 [Mandy] Sharing ${availableApps.length} mini app(s) for session ${sessionId}`);
       
-      const sessions = [];
+      const sessionsWithMetadata = [];
       
       // Create sessions for all mini apps
-      for (const [appName, appId] of availableApps) {
+      for (const [appName, appConfig] of availableApps) {
         try {
-          const sessionName = `${sessionId} - ${appName}`;
+          // Support both old format (string) and new format (object)
+          const appId = typeof appConfig === 'string' ? appConfig : appConfig.id;
+          const appHandle = typeof appConfig === 'object' ? appConfig.handle : appName;
+          const appDisplayName = typeof appConfig === 'object' ? appConfig.name : appName;
+          const appDescription = typeof appConfig === 'object' ? appConfig.description : null;
+          const appIconUrl = typeof appConfig === 'object' ? appConfig.iconUrl : null;
+          
+          const sessionName = `${sessionId} - ${appDisplayName}`;
           const session = await this.createMiniAppSession(chatId, appId, sessionName);
-          sessions.push(session);
-          console.log(`✅ [Mandy] Created session for ${appName}: instanceId=${session.instanceId}, shareCode=${session.shareCode}`);
+          
+          // Store session with metadata for rich content blocks
+          sessionsWithMetadata.push({
+            ...session,
+            appId,
+            handle: appHandle,
+            name: appDisplayName,
+            description: appDescription,
+            iconUrl: appIconUrl
+          });
+          
+          console.log(`✅ [Mandy] Created session for ${appDisplayName}: instanceId=${session.instanceId}, shareCode=${session.shareCode}`);
         } catch (error) {
           console.error(`❌ [Mandy] Error creating session for ${appName}:`, error);
         }
       }
       
-      // Send message with mini app instances as rich content blocks (not URLs)
-      if (sessions.length > 0) {
+      // Send message with mini app instances as rich content blocks
+      if (sessionsWithMetadata.length > 0) {
         // Fun, conversational message encouraging them to play
         const messages = [
           `Alright, I've got some fun games for you! 🎮 These will help me get to know you better - the more you play, the better I can match you!`,
@@ -828,20 +853,27 @@ Return ONLY valid JSON, no other text.`;
         const message = messages[Math.floor(Math.random() * messages.length)];
         
         // Create rich content blocks for mini app instances
-        // Format: A1Zap expects micro_app type with instanceId
-        const richContentBlocks = sessions.map((session, index) => ({
-          type: 'micro_app',
+        // Format: A1Zap expects micro_app_instance_card type with appId, instanceId, handle, name
+        const richContentBlocks = sessionsWithMetadata.map((session, index) => ({
+          type: 'micro_app_instance_card',
           data: {
-            instanceId: session.instanceId
+            appId: session.appId,
+            instanceId: session.instanceId,
+            handle: session.handle,
+            name: session.name,
+            shareCode: session.shareCode,
+            ...(session.description && { description: session.description }),
+            ...(session.iconUrl && { iconUrl: session.iconUrl })
           },
           order: index
         }));
         
-        console.log(`📤 [Mandy] Sending ${sessions.length} mini app instance(s) as rich content blocks`);
+        console.log(`📤 [Mandy] Sending ${sessionsWithMetadata.length} mini app instance(s) as rich content blocks`);
+        console.log(`   Block format:`, JSON.stringify(richContentBlocks, null, 2));
         await this.client.sendMessage(chatId, message, richContentBlocks);
       }
       
-      return sessions;
+      return sessionsWithMetadata;
     } catch (error) {
       console.error(`❌ [Mandy] Error sharing mini apps:`, error);
       throw error;
@@ -1114,8 +1146,9 @@ Return ONLY valid JSON, no other text.`;
     const miniAppKeywords = {};
     
     // Build keyword map from configured apps
-    // You can customize this mapping based on your mini app names
-    for (const [appName, appId] of Object.entries(miniApps)) {
+    // Support both old format (string) and new format (object with id)
+    for (const [appName, appConfig] of Object.entries(miniApps)) {
+      const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
       if (appId && !appId.includes('your_')) {
         // Map common keywords to app IDs
         const keywords = appName.toLowerCase().split(/[-_\s]+/);
@@ -1126,6 +1159,15 @@ Return ONLY valid JSON, no other text.`;
         });
         // Add app name itself
         miniAppKeywords[appName.toLowerCase()] = appId;
+        // Also add the display name from config if it exists
+        if (typeof appConfig === 'object' && appConfig.name) {
+          const nameKeywords = appConfig.name.toLowerCase().split(/[-_\s:]+/);
+          nameKeywords.forEach(keyword => {
+            if (keyword.length > 2) {
+              miniAppKeywords[keyword] = appId;
+            }
+          });
+        }
       }
     }
     
@@ -1138,9 +1180,14 @@ Return ONLY valid JSON, no other text.`;
     // Check for explicit commands
     if (message.includes('share') && (message.includes('mini app') || message.includes('game'))) {
       // Return first available app or list
-      const availableApps = Object.entries(miniApps).filter(([_, appId]) => appId && !appId.includes('your_'));
+      const availableApps = Object.entries(miniApps).filter(([_, appConfig]) => {
+        const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
+        return appId && !appId.includes('your_');
+      });
       if (availableApps.length > 0) {
-        return { microAppId: availableApps[0][1], action: 'share' };
+        const firstAppConfig = availableApps[0][1];
+        const firstAppId = typeof firstAppConfig === 'string' ? firstAppConfig : firstAppConfig.id;
+        return { microAppId: firstAppId, action: 'share' };
       }
     }
     

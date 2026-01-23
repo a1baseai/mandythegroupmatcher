@@ -82,11 +82,22 @@ module.exports = {
       agentId: process.env.MANDY_AGENT_ID || 'your_mandy_agent_id_here',
       apiUrl: 'https://api.a1zap.com/v1/messages/individual',
       agentName: 'mandy',
-      // Mini App configuration
+      // Mini App configuration - includes metadata for rich content blocks
+      // Each mini app needs: id, handle, name (and optionally iconUrl, description)
       miniApps: {
-        'miniApp1': process.env.MINI_APP_1_ID || 'xs7c6vx1t5ch4gkmkbcmjctwpx7z8hhv',
-        // Add more mini apps as needed
-        // Example: 'wouldYouRather': process.env.WYR_MINI_APP_ID || 'your_wyr_app_id',
+        'wouldYouRather': {
+          id: process.env.MINI_APP_1_ID || 'xs7c6vx1t5ch4gkmkbcmjctwpx7z8hhv',
+          handle: 'would-you-rather-whimsical-dil-i651',
+          name: 'Would You Rather: Whimsical Dilemmas',
+          description: 'Dive into whimsical dilemmas! Choose between two absurd options, see live results, and progress through 10 delightful questions. Perfect for solo fun or shared laughs.'
+        }
+        // Add more mini apps as needed:
+        // 'anotherApp': {
+        //   id: process.env.ANOTHER_APP_ID || 'your_app_id',
+        //   handle: 'apphandle',
+        //   name: 'App Display Name',
+        //   description: 'Optional description'
+        // }
       }
     }
   },
