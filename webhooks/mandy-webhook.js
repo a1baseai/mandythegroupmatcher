@@ -942,8 +942,8 @@ Return ONLY valid JSON, no other text.`;
       
       console.log(`✅ [Mandy] Profile created from mini app data for ${sessionId}`);
       
-      // Notify user
-      await this.client.sendMessage(chatId, `Awesome! I've got enough data from your mini apps to create your profile! 🎉\n\nYou're all set for matching - sit tight and I'll find you some great matches! 💕`);
+      // Profile created - user will be notified on their next message via the profile check (lines 308-326)
+      // Removed direct sendMessage to prevent double messages with the conversational response
       
       return updatedProfile;
     } catch (error) {
