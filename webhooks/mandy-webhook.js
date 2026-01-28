@@ -79,7 +79,7 @@ class MandyWebhook extends BaseWebhook {
       console.log(`💬 [Mandy] Welcome message prepared (${welcomeMessage.length} chars):`);
       console.log(`   "${welcomeMessage.substring(0, 100)}..."\n`);
 
-      // Send welcome message and immediately share mini apps (skip if test mode)
+      // Send welcome message only (mini apps shared after first user message)
       if (!webhookHelpers.isTestChat(chatId)) {
         try {
           console.log(`📤 [Mandy] Attempting to send welcome message to chatId: ${chatId}`);
@@ -94,31 +94,9 @@ class MandyWebhook extends BaseWebhook {
           console.log(`   API Response:`, sendResult ? JSON.stringify(sendResult, null, 2) : 'No response data');
           console.log('');
 
-          // Immediately share mini apps after welcome message
-          console.log(`🎮 [Mandy] Sharing mini apps immediately after welcome...`);
-          try {
-            // Mark as shared FIRST to prevent duplicate calls
-            const currentState = groupProfileStorage.getInterviewState(chatId) || {};
-            groupProfileStorage.setInterviewState(chatId, {
-              ...currentState,
-              sessionId,
-              miniAppsShared: true,
-              sharedAt: new Date().toISOString()
-            });
-            
-            await this.shareAllMiniApps(chatId, sessionId);
-            console.log(`✅ [Mandy] Mini apps shared successfully`);
-          } catch (miniAppError) {
-            console.error(`❌ [Mandy] Error sharing mini apps:`, miniAppError.message);
-            console.error(`   Stack:`, miniAppError.stack);
-            // Reset the flag so we can try again in processRequest
-            const currentState = groupProfileStorage.getInterviewState(chatId) || {};
-            groupProfileStorage.setInterviewState(chatId, {
-              ...currentState,
-              miniAppsShared: false
-            });
-            // Don't fail the whole request if mini apps fail - will retry in processRequest
-          }
+          // Mini apps will be shared when user sends their first message (in processRequest)
+          // This creates a more natural conversation flow instead of bombarding with everything upfront
+          console.log(`📝 [Mandy] Mini apps will be shared after user's first message`);
         
         // Mark as sent so we don't send it again on first user message
         if (!this.welcomeMessagesSent) {
