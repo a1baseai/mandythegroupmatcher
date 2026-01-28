@@ -64,7 +64,13 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: 'GET /health',
-      mandy: 'POST /webhook/mandy'
+      mandy: 'POST /webhook/mandy',
+      groups: 'GET /api/groups',
+      matches: 'GET /api/matches',
+      match: 'GET/POST /api/match',
+      state: 'GET /api/state/:chatId',
+      reset: 'DELETE /api/reset/:chatId',
+      resetAll: 'DELETE /api/reset-all'
     }
   });
 });
@@ -279,6 +285,93 @@ app.post('/api/sync-mini-app-data/:chatId', async (req, res) => {
   }
 });
 
+// Reset/clear interview state for a chat (for testing)
+app.delete('/api/reset/:chatId', (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const groupProfileStorage = require('./services/group-profile-storage');
+    
+    // Get current state before clearing (for logging)
+    const currentState = groupProfileStorage.getInterviewState(chatId);
+    const currentProfile = groupProfileStorage.getProfileByChatId(chatId);
+    
+    // Clear interview state
+    groupProfileStorage.clearInterviewState(chatId);
+    
+    res.json({
+      success: true,
+      message: 'Interview state cleared for chat',
+      chatId,
+      clearedState: currentState ? {
+        hadMiniAppsShared: currentState.miniAppsShared || false,
+        sessionId: currentState.sessionId
+      } : null,
+      hadProfile: !!currentProfile,
+      note: 'Profile was NOT deleted - only interview state was cleared. User can start fresh mini app flow.'
+    });
+  } catch (error) {
+    console.error('❌ Error resetting chat state:', error);
+    res.status(500).json({
+      error: 'Failed to reset chat state',
+      message: error.message
+    });
+  }
+});
+
+// Get interview state for debugging
+app.get('/api/state/:chatId', (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const groupProfileStorage = require('./services/group-profile-storage');
+    
+    const state = groupProfileStorage.getInterviewState(chatId);
+    const profile = groupProfileStorage.getProfileByChatId(chatId);
+    
+    res.json({
+      success: true,
+      chatId,
+      interviewState: state,
+      hasProfile: !!profile,
+      profile: profile ? {
+        groupName: profile.groupName,
+        id: profile.id,
+        hasMiniAppSessions: !!(profile.miniAppSessions && Object.keys(profile.miniAppSessions).length > 0),
+        hasMiniAppData: !!(profile.miniAppData && Object.keys(profile.miniAppData).length > 0)
+      } : null
+    });
+  } catch (error) {
+    console.error('❌ Error getting state:', error);
+    res.status(500).json({
+      error: 'Failed to get state',
+      message: error.message
+    });
+  }
+});
+
+// Clear ALL interview states (nuclear option for testing)
+app.delete('/api/reset-all', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Clear interview state file
+    const statePath = path.join(__dirname, 'data', 'interview-state.json');
+    fs.writeFileSync(statePath, JSON.stringify({}, null, 2));
+    
+    res.json({
+      success: true,
+      message: 'All interview states cleared',
+      note: 'Profiles were NOT deleted - only interview states were cleared'
+    });
+  } catch (error) {
+    console.error('❌ Error resetting all states:', error);
+    res.status(500).json({
+      error: 'Failed to reset all states',
+      message: error.message
+    });
+  }
+});
+
 // Poll and create profile from mini apps endpoint
 app.post('/api/poll-mini-apps/:chatId', async (req, res) => {
   try {
@@ -346,6 +439,9 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`  GET  /api/groups                  - Get all group profiles`);
   console.log(`  POST /api/sync-mini-app-data/:chatId - Sync mini app data for a chat`);
   console.log(`  POST /api/poll-mini-apps/:chatId - Poll mini apps and create profile`);
+  console.log(`  GET  /api/state/:chatId          - Get interview state for debugging`);
+  console.log(`  DELETE /api/reset/:chatId        - Reset interview state for a chat`);
+  console.log(`  DELETE /api/reset-all            - Reset ALL interview states (testing)`);
   console.log(`\nConfiguration:`);
   console.log(`  Claude API: ${config.claude.apiKey && !config.claude.apiKey.includes('your_') ? '✅ Configured' : '❌ Not configured'}`);
   console.log(`  A1Zap API: ${config.a1zap.apiKey && !config.a1zap.apiKey.includes('your_') ? '✅ Configured' : '❌ Not configured'}`);
