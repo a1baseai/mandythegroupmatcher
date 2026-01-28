@@ -56,7 +56,12 @@ class BaseA1ZapClient {
    */
   async sendMessage(chatId, content, richContentBlocks = null) {
     try {
-      this._validateApiKey();
+      // Local testing mode: don't call A1Zap, just log payload and return a mock response.
+      // Usage: A1ZAP_DRY_RUN=true node server.js
+      const isDryRun = String(process.env.A1ZAP_DRY_RUN || '').toLowerCase() === 'true';
+      if (!isDryRun) {
+        this._validateApiKey();
+      }
 
       const url = `${this.apiUrl}/${this.agentId}/send`;
 
@@ -90,6 +95,17 @@ class BaseA1ZapClient {
       console.log(`  -H 'Content-Type: application/json' \\`);
       console.log(`  -d '${JSON.stringify(payload)}'`);
       console.log(`${'='.repeat(80)}\n`);
+
+      if (isDryRun) {
+        console.log(`🧪 [${this.agentName}] A1ZAP_DRY_RUN=true → not sending to A1Zap. Returning mock success.\n`);
+        return {
+          ok: true,
+          dryRun: true,
+          chatId,
+          sentAt: new Date().toISOString(),
+          payload
+        };
+      }
 
       // Retry logic for transient errors (5xx, network errors)
       let lastError;

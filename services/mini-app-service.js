@@ -26,6 +26,8 @@ class MiniAppService {
    */
   async getOrCreateSession(microAppId, sessionKey, name, initialData = {}) {
     try {
+      const isDryRun = String(process.env.A1ZAP_DRY_RUN || '').toLowerCase() === 'true';
+
       // API now requires sessionKey in the body (per updated API)
       const url = `${this.baseUrl}/api/agent-sessions`;
       
@@ -45,6 +47,29 @@ class MiniAppService {
       console.log(`Name: ${name}`);
       console.log(`Payload:`, JSON.stringify(payload, null, 2));
       console.log(`${'='.repeat(80)}\n`);
+
+      if (isDryRun) {
+        const safeSuffix = String(sessionKey).replace(/[^a-zA-Z0-9]/g, '').slice(-10) || 'session';
+        const instanceId = `dry_${microAppId.slice(0, 6)}_${safeSuffix}_${Date.now()}`;
+        const shareCode = `dry_${microAppId.slice(0, 6)}_${Math.random().toString(36).slice(2, 8)}`;
+        const shareUrl = `https://www.a1zap.com/micro-apps/join/${shareCode}`;
+
+        console.log(`🧪 [MiniApp] A1ZAP_DRY_RUN=true → returning mock session:`);
+        console.log(`   Instance ID: ${instanceId}`);
+        console.log(`   Share URL: ${shareUrl}`);
+        console.log(`   Share Code: ${shareCode}\n`);
+
+        return {
+          created: true,
+          dryRun: true,
+          microAppId,
+          sessionKey,
+          instanceId,
+          shareCode,
+          shareUrl,
+          name: payload.name
+        };
+      }
 
       const response = await axios.post(url, payload, {
         headers: {
@@ -129,6 +154,17 @@ class MiniAppService {
    */
   async getSharedData(instanceId) {
     try {
+      const isDryRun = String(process.env.A1ZAP_DRY_RUN || '').toLowerCase() === 'true';
+      if (isDryRun) {
+        console.log(`🧪 [MiniApp] A1ZAP_DRY_RUN=true → returning mock sharedData for ${instanceId}\n`);
+        return {
+          instanceId,
+          status: 'active',
+          sharedDataVersion: 1,
+          sharedData: {}
+        };
+      }
+
       const url = `${this.baseUrl}/api/micro-apps/instance-data?instanceId=${encodeURIComponent(instanceId)}`;
 
       console.log(`\n${'='.repeat(80)}`);

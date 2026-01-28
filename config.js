@@ -85,19 +85,85 @@ module.exports = {
       // Mini App configuration - includes metadata for rich content blocks
       // Each mini app needs: id, handle, name (and optionally iconUrl, description)
       miniApps: {
-        'wouldYouRather': {
-          id: process.env.MINI_APP_1_ID || 'xs7c6vx1t5ch4gkmkbcmjctwpx7z8hhv',
-          handle: 'would-you-rather-whimsical-dil-i651',
-          name: 'Would You Rather: Whimsical Dilemmas',
-          description: 'Dive into whimsical dilemmas! Choose between two absurd options, see live results, and progress through 10 delightful questions. Perfect for solo fun or shared laughs.'
+        // NOTE: If you don't have handles/names yet, we set safe placeholders.
+        // A1Zap instance cards require `handle` + `name` in the rich content block.
+        // If you later provide real handles/names, swap them in here.
+
+        miniApp01: {
+          id: process.env.MINI_APP_01_ID || 'xs70yppf0aw3tmjp4qjzp9q3mx7ybz0m',
+          handle: process.env.MINI_APP_01_HANDLE || 'click-splosion',
+          name: process.env.MINI_APP_01_NAME || 'Click Splosion'
+        },
+        miniApp02: {
+          id: process.env.MINI_APP_02_ID || 'xs7dajn935m7ggcx6z7r0kbkg97ybnz1',
+          handle: process.env.MINI_APP_02_HANDLE || 'neon-boost',
+          name: process.env.MINI_APP_02_NAME || 'Neon Boost'
+        },
+        miniApp03: {
+          id: process.env.MINI_APP_03_ID || 'xs7b4aygw46wpbqrpgh69vr63s7yajdv',
+          handle: process.env.MINI_APP_03_HANDLE || 'smoothy-ship',
+          name: process.env.MINI_APP_03_NAME || 'Smoothy Ship'
+        },
+        miniApp04: {
+          id: process.env.MINI_APP_04_ID || 'xs74eekm23hmv6vtetp69v10eh7y9fz9',
+          handle: process.env.MINI_APP_04_HANDLE || 'word-vaporizer',
+          name: process.env.MINI_APP_04_NAME || 'Word Vaporizer'
+        },
+        miniApp05: {
+          id: process.env.MINI_APP_05_ID || 'xs7cssxv0ebqw583ca4prgfvnx7ycm8r',
+          handle: process.env.MINI_APP_05_HANDLE || 'daily-draw',
+          name: process.env.MINI_APP_05_NAME || 'Daily Draw'
+        },
+        miniApp06: {
+          id: process.env.MINI_APP_06_ID || 'xs74xbr5qj3q6s4kwz6ab8nq317ydtdh',
+          handle: process.env.MINI_APP_06_HANDLE || 'swing-stop',
+          name: process.env.MINI_APP_06_NAME || 'Swing Stop'
+        },
+        miniApp07: {
+          id: process.env.MINI_APP_07_ID || 'xs70nszrhzz10c2ndme61wy2817ycppj',
+          handle: process.env.MINI_APP_07_HANDLE || 'ephemeral-blessings-streaks',
+          name: process.env.MINI_APP_07_NAME || 'Ephemeral Blessings Streaks'
+        },
+        miniApp08: {
+          id: process.env.MINI_APP_08_ID || 'xs7ajn4n8pe87wjdxey835jxkx7ycr3c',
+          handle: process.env.MINI_APP_08_HANDLE || 'sparkle-entry',
+          name: process.env.MINI_APP_08_NAME || 'Sparkle Entry'
+        },
+        miniApp09: {
+          id: process.env.MINI_APP_09_ID || 'xs73ffx10j9nev81f0g576vhen7y7kdp',
+          handle: process.env.MINI_APP_09_HANDLE || 'word-shower',
+          name: process.env.MINI_APP_09_NAME || 'Word Shower'
+        },
+        miniApp10: {
+          id: process.env.MINI_APP_10_ID || 'xs7ar370gn1aebzkz5753fddh17y07ag',
+          handle: process.env.MINI_APP_10_HANDLE || 'vibe-blaster',
+          name: process.env.MINI_APP_10_NAME || 'Vibe Blaster'
+        },
+        miniApp11: {
+          id: process.env.MINI_APP_11_ID || 'xs7cyy3am9sqax67bwpby0t7bn7yfpa7',
+          handle: process.env.MINI_APP_11_HANDLE || 'anonpost',
+          name: process.env.MINI_APP_11_NAME || 'AnonPost'
+        },
+        miniApp12: {
+          id: process.env.MINI_APP_12_ID || 'xs74n3mf1fb9qqr7xsky0wfkxx7yfgxq',
+          handle: process.env.MINI_APP_12_HANDLE || 'swamp-digger',
+          name: process.env.MINI_APP_12_NAME || 'Swamp Digger'
+        },
+        miniApp13: {
+          id: process.env.MINI_APP_13_ID || 'xs77enqnwza1t1km1z1nmtcdeh7ye70f',
+          handle: process.env.MINI_APP_13_HANDLE || 'clown-toss-physics',
+          name: process.env.MINI_APP_13_NAME || 'Clown Toss Physics'
+        },
+        miniApp14: {
+          id: process.env.MINI_APP_14_ID || 'xs7bjn2zrsttxhawz9p90r6rrh7ybp5x',
+          handle: process.env.MINI_APP_14_HANDLE || 'fluid-flows',
+          name: process.env.MINI_APP_14_NAME || 'Fluid Flows'
+        },
+        miniApp15: {
+          id: process.env.MINI_APP_15_ID || 'xs725h596q3ksbjw5kehbjbaa97z3w38',
+          handle: process.env.MINI_APP_15_HANDLE || 'rate-my-rent',
+          name: process.env.MINI_APP_15_NAME || 'Rate My Rent'
         }
-        // Add more mini apps as needed:
-        // 'anotherApp': {
-        //   id: process.env.ANOTHER_APP_ID || 'your_app_id',
-        //   handle: 'apphandle',
-        //   name: 'App Display Name',
-        //   description: 'Optional description'
-        // }
       }
     }
   },
