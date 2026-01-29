@@ -820,19 +820,12 @@ Return ONLY valid JSON, no other text.`;
       }
       
       // Send message with mini app instances as rich content blocks
+      // A1Zap API limits to 10 blocks per message, so batch if needed
       if (sessionsWithMetadata.length > 0) {
-        // Fun, conversational message encouraging them to play
-        const messages = [
-          `Alright, I've got some fun games for you! 🎮 These will help me get to know you better - the more you play, the better I can match you!`,
-          `Here are some games I think you'll love! 🎮 Play them when you're ready - they're super fun and will help me find you the perfect matches!`,
-          `I'm sending you some games now! 🎮 They're actually really fun, promise! Play them and I'll learn all about what makes you awesome!`,
-          `Time for some games! 🎮 These are way more fun than answering boring questions - give them a try and help me get to know you!`
-        ];
-        const message = messages[Math.floor(Math.random() * messages.length)];
+        const MAX_BLOCKS_PER_MESSAGE = 10;
         
-        // Create rich content blocks for mini app instances
-        // Format: A1Zap expects micro_app_instance_card type with appId, instanceId, handle, name
-        const richContentBlocks = sessionsWithMetadata.map((session, index) => ({
+        // Create all rich content blocks
+        const allBlocks = sessionsWithMetadata.map((session, index) => ({
           type: 'micro_app_instance_card',
           data: {
             appId: session.appId,
@@ -846,8 +839,31 @@ Return ONLY valid JSON, no other text.`;
           order: index
         }));
         
-        console.log(`📤 [Mandy] Sending ${sessionsWithMetadata.length} mini app instance cards...`);
-        await this.client.sendMessage(chatId, message, richContentBlocks);
+        // Split into batches of MAX_BLOCKS_PER_MESSAGE
+        const batches = [];
+        for (let i = 0; i < allBlocks.length; i += MAX_BLOCKS_PER_MESSAGE) {
+          batches.push(allBlocks.slice(i, i + MAX_BLOCKS_PER_MESSAGE));
+        }
+        
+        // Messages for first and subsequent batches
+        const firstMessages = [
+          `Alright, I've got some fun games for you! 🎮 These will help me get to know you better - the more you play, the better I can match you!`,
+          `Here are some games I think you'll love! 🎮 Play them when you're ready - they're super fun and will help me find you the perfect matches!`,
+          `I'm sending you some games now! 🎮 They're actually really fun, promise! Play them and I'll learn all about what makes you awesome!`,
+          `Time for some games! 🎮 These are way more fun than answering boring questions - give them a try and help me get to know you!`
+        ];
+        const continuationMessage = `And here are more games! 🎮`;
+        
+        // Send each batch
+        for (let i = 0; i < batches.length; i++) {
+          const batch = batches[i];
+          const message = i === 0 
+            ? firstMessages[Math.floor(Math.random() * firstMessages.length)]
+            : continuationMessage;
+          
+          console.log(`📤 [Mandy] Sending batch ${i + 1}/${batches.length} with ${batch.length} mini app cards...`);
+          await this.client.sendMessage(chatId, message, batch);
+        }
       }
       
       return sessionsWithMetadata;
