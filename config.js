@@ -90,22 +90,22 @@ module.exports = {
         // If you later provide real handles/names, swap them in here.
 
         miniApp01: {
-          id: process.env.MINI_APP_01_ID || 'xs70yppf0aw3tmjp4qjzp9q3mx7ybz0m',
+          id: process.env.MINI_APP_01_ID || 'xs7dh4w4ckmthbezzfdd7z4ww97ya0jn',
           handle: process.env.MINI_APP_01_HANDLE || 'click-splosion',
           name: process.env.MINI_APP_01_NAME || 'Click Splosion'
         },
         miniApp02: {
-          id: process.env.MINI_APP_02_ID || 'xs7dajn935m7ggcx6z7r0kbkg97ybnz1',
+          id: process.env.MINI_APP_02_ID || 'xs74mayvzex50abzj8frrk8a0h7ya1fa',
           handle: process.env.MINI_APP_02_HANDLE || 'neon-boost',
           name: process.env.MINI_APP_02_NAME || 'Neon Boost'
         },
         miniApp03: {
-          id: process.env.MINI_APP_03_ID || 'xs7b4aygw46wpbqrpgh69vr63s7yajdv',
+          id: process.env.MINI_APP_03_ID || 'xs79kqye9wqyk0faf582qf7cjn7ybef5',
           handle: process.env.MINI_APP_03_HANDLE || 'smoothy-ship',
           name: process.env.MINI_APP_03_NAME || 'Smoothy Ship'
         },
         miniApp04: {
-          id: process.env.MINI_APP_04_ID || 'xs74eekm23hmv6vtetp69v10eh7y9fz9',
+          id: process.env.MINI_APP_04_ID || 'xs7czxmcq86hkmccrcjxs0dv857y8fgw',
           handle: process.env.MINI_APP_04_HANDLE || 'word-vaporizer',
           name: process.env.MINI_APP_04_NAME || 'Word Vaporizer'
         },
@@ -115,27 +115,27 @@ module.exports = {
           name: process.env.MINI_APP_05_NAME || 'Daily Draw'
         },
         miniApp06: {
-          id: process.env.MINI_APP_06_ID || 'xs74xbr5qj3q6s4kwz6ab8nq317ydtdh',
+          id: process.env.MINI_APP_06_ID || 'xs7e97ta32zdttrq631y78kg9s7yfan3',
           handle: process.env.MINI_APP_06_HANDLE || 'swing-stop',
           name: process.env.MINI_APP_06_NAME || 'Swing Stop'
         },
         miniApp07: {
-          id: process.env.MINI_APP_07_ID || 'xs70nszrhzz10c2ndme61wy2817ycppj',
+          id: process.env.MINI_APP_07_ID || 'xs73tg9hjsva2r3krw9g3rz7w17ye9g6',
           handle: process.env.MINI_APP_07_HANDLE || 'ephemeral-blessings-streaks',
           name: process.env.MINI_APP_07_NAME || 'Ephemeral Blessings Streaks'
         },
         miniApp08: {
-          id: process.env.MINI_APP_08_ID || 'xs7ajn4n8pe87wjdxey835jxkx7ycr3c',
+          id: process.env.MINI_APP_08_ID || 'xs77tdm04hwqtpza7cc36kvpyx7ych89',
           handle: process.env.MINI_APP_08_HANDLE || 'sparkle-entry',
           name: process.env.MINI_APP_08_NAME || 'Sparkle Entry'
         },
         miniApp09: {
-          id: process.env.MINI_APP_09_ID || 'xs73ffx10j9nev81f0g576vhen7y7kdp',
-          handle: process.env.MINI_APP_09_HANDLE || 'word-shower',
-          name: process.env.MINI_APP_09_NAME || 'Word Shower'
+          id: process.env.MINI_APP_09_ID || 'xs7czxmcq86hkmccrcjxs0dv857y8fgw',
+          handle: process.env.MINI_APP_09_HANDLE || 'word-vaporizer',
+          name: process.env.MINI_APP_09_NAME || 'Word Vaporizer'
         },
         miniApp10: {
-          id: process.env.MINI_APP_10_ID || 'xs7ar370gn1aebzkz5753fddh17y07ag',
+          id: process.env.MINI_APP_10_ID || 'xs78tggbdej2s5j01beasxdm757yfmbp',
           handle: process.env.MINI_APP_10_HANDLE || 'vibe-blaster',
           name: process.env.MINI_APP_10_NAME || 'Vibe Blaster'
         },
@@ -155,12 +155,12 @@ module.exports = {
           name: process.env.MINI_APP_13_NAME || 'Clown Toss Physics'
         },
         miniApp14: {
-          id: process.env.MINI_APP_14_ID || 'xs7bjn2zrsttxhawz9p90r6rrh7ybp5x',
+          id: process.env.MINI_APP_14_ID || 'xs78bjpjfsf4g48wqx87h0f4b97y89xn',
           handle: process.env.MINI_APP_14_HANDLE || 'fluid-flows',
           name: process.env.MINI_APP_14_NAME || 'Fluid Flows'
         },
         miniApp15: {
-          id: process.env.MINI_APP_15_ID || 'xs725h596q3ksbjw5kehbjbaa97z3w38',
+          id: process.env.MINI_APP_15_ID || 'xs744558ywr052q50g7kjytt85801169',
           handle: process.env.MINI_APP_15_HANDLE || 'rate-my-rent',
           name: process.env.MINI_APP_15_NAME || 'Rate My Rent'
         }
