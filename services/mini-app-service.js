@@ -38,15 +38,7 @@ class MiniAppService {
         initialData
       };
 
-      console.log(`\n${'='.repeat(80)}`);
-      console.log(`📱 [MiniApp] Creating/getting session`);
-      console.log(`${'='.repeat(80)}`);
-      console.log(`URL: ${url}`);
-      console.log(`Micro App ID: ${microAppId}`);
-      console.log(`Session Key: ${sessionKey}`);
-      console.log(`Name: ${name}`);
-      console.log(`Payload:`, JSON.stringify(payload, null, 2));
-      console.log(`${'='.repeat(80)}\n`);
+      console.log(`📱 [MiniApp] Creating session for ${name?.split(' - ').pop() || microAppId.slice(0,8)}...`);
 
       if (isDryRun) {
         const safeSuffix = String(sessionKey).replace(/[^a-zA-Z0-9]/g, '').slice(-10) || 'session';
@@ -79,22 +71,11 @@ class MiniAppService {
         timeout: 10000
       });
 
-      console.log(`✅ [MiniApp] Session ${response.data.created ? 'created' : 'retrieved'}:`);
-      console.log(`   Instance ID: ${response.data.instanceId}`);
-      console.log(`   Share URL: ${response.data.shareUrl}`);
-      console.log(`   Share Code: ${response.data.shareCode}\n`);
+      console.log(`✅ [MiniApp] Session ready: ${response.data.shareCode}`);
 
       return response.data;
     } catch (error) {
-      console.error(`\n${'='.repeat(80)}`);
-      console.error(`❌ [MiniApp] Error creating/getting session`);
-      console.error(`${'='.repeat(80)}`);
-      console.error('Error:', error.response?.data || error.message);
-      if (error.response) {
-        console.error('Status:', error.response.status);
-        console.error('Data:', JSON.stringify(error.response.data, null, 2));
-      }
-      console.error(`${'='.repeat(80)}\n`);
+      console.error(`❌ [MiniApp] Session error for ${microAppId.slice(0,8)}: ${error.response?.status || 'network'} - ${error.response?.data?.message || error.message}`);
       throw error;
     }
   }

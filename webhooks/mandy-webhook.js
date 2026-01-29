@@ -846,8 +846,7 @@ Return ONLY valid JSON, no other text.`;
           order: index
         }));
         
-        console.log(`📤 [Mandy] Sending ${sessionsWithMetadata.length} mini app instance(s) as rich content blocks`);
-        console.log(`   Block format:`, JSON.stringify(richContentBlocks, null, 2));
+        console.log(`📤 [Mandy] Sending ${sessionsWithMetadata.length} mini app instance cards...`);
         await this.client.sendMessage(chatId, message, richContentBlocks);
       }
       
