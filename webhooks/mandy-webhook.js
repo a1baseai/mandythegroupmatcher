@@ -537,7 +537,7 @@ IMPORTANT:
       // Generate response using Claude with full conversation history
       // Use timeout with Promise.race to ensure we always get a response
       const claudeResponsePromise = claudeService.chat(messages, {
-        systemPrompt: enhancedSystemPrompt,
+        systemPrompt: systemPrompt,
         ...mandyAgent.getGenerationOptions(),
         temperature: 0.9, // Higher temperature for more personality
         maxTokens: 250, // Reduced tokens for faster responses (still enough for personality)
