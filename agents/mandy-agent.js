@@ -135,7 +135,7 @@ CRITICAL RESTRICTIONS:
    */
   getWelcomeMessage(userName, isAnonymous) {
     // Short, text-like welcome message - no longer asking for name
-    return `Hey! 👋 I'm Mandy - I help groups find matches through fun games. Let's get started! 🎮`;
+    return `Hey! 👋 I'm Mandy - I help groups find matches through fun games. Let's get started! 🎮\n\n💡 Tip: I only respond when you say my name (like "Hey Mandy" or "Mandy, can you...") - this way I won't interrupt your game time! Just mention me when you want another game or have a question. 😊`;
   }
 
   /**

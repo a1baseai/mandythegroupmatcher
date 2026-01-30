@@ -317,9 +317,38 @@ class MandyWebhook extends BaseWebhook {
         });
       }
       
+      // Check if user is asking for another game
+      const userMsgLower = userMessage.toLowerCase();
+      const askingForGame = userMsgLower.includes('another') || 
+                           userMsgLower.includes('more') || 
+                           userMsgLower.includes('next') ||
+                           userMsgLower.includes('game') ||
+                           userMsgLower.includes('send') ||
+                           (userMsgLower.includes('one') && userMsgLower.includes('more'));
+      
+      // Get list of sent games from interview state
+      const sentGameIds = interviewState?.sentGameIds || [];
+      
+      // If user is asking for a game, send one
+      if (askingForGame && miniAppsShared) {
+        const result = await this.shareOneRandomMiniApp(chatId, currentSessionId, sentGameIds);
+        if (result) {
+          return {
+            response: null,
+            sent: true  // Game already sent by shareOneRandomMiniApp
+          };
+        } else {
+          // All games have been sent
+          return {
+            response: `You've already played all my games! 🎮 That's awesome - I've got everything I need to find you great matches! 💕`,
+            sent: false
+          };
+        }
+      }
+      
       if (!miniAppsShared) {
-        // Share mini apps IMMEDIATELY (no group name needed)
-        console.log(`🎮 [Mandy] Sharing mini apps NOW`);
+        // Share FIRST mini app (randomly chosen)
+        console.log(`🎮 [Mandy] Sharing first mini app`);
         console.log(`  Chat ID: ${chatId}`);
         console.log(`  Session ID: ${currentSessionId}`);
         
@@ -345,32 +374,32 @@ class MandyWebhook extends BaseWebhook {
           ...currentState,
           sessionId: currentSessionId,
           miniAppsShared: true,
-          sharedAt: new Date().toISOString()
+          sharedAt: new Date().toISOString(),
+          sentGameIds: []  // Initialize empty array to track sent games
         });
         
-        // Share mini apps and wait for it to complete
+        // Share one random mini app
         try {
-          console.log(`  Attempting to share ${availableApps.length} mini app(s)...`);
-          await this.shareAllMiniApps(chatId, currentSessionId);
-          console.log(`  ✅ Mini apps shared successfully`);
-          // Links are already sent by shareAllMiniApps, so mark as sent to prevent double message
-          // Return null response to prevent base webhook from sending anything
-          return {
-            response: null,
-            sent: true  // Mark as sent since shareAllMiniApps already sent the message
-          };
+          console.log(`  Attempting to share first random mini app...`);
+          const shared = await this.shareOneRandomMiniApp(chatId, currentSessionId, []);
+          if (shared) {
+            console.log(`  ✅ First mini app shared successfully`);
+            return {
+              response: null,
+              sent: true  // Game already sent
+            };
+          } else {
+            return {
+              response: `Having trouble setting up the game right now. Can you check with A1Zap support? 🎮`,
+              sent: false
+            };
+          }
         } catch (err) {
-          console.error(`❌ [Mandy] Error sharing mini apps:`, err);
+          console.error(`❌ [Mandy] Error sharing mini app:`, err);
           console.error(`  Error message: ${err.message}`);
           if (err.response) {
             console.error(`  Status: ${err.response.status}`);
             console.error(`  Data:`, JSON.stringify(err.response.data, null, 2));
-          }
-          
-          // Check if it's a 500 error (server issue)
-          const isServerError = err.response && err.response.status >= 500;
-          if (isServerError) {
-            console.error(`  ⚠️  This is an A1Zap API server error - the mini app ID might be correct but the API is having issues`);
           }
           
           // Reset the flag so we can try again
@@ -400,26 +429,20 @@ class MandyWebhook extends BaseWebhook {
         console.error(`❌ [Mandy] Error creating profile from mini apps:`, err);
       });
       
-      // Keep response minimal - they already have the links
-      // Only respond if they're asking something specific
-      const userMsgLower = userMessage.toLowerCase();
-      if (userMsgLower.includes('link') || userMsgLower.includes('game') || userMsgLower.includes('send') || userMsgLower.includes('where')) {
-        return {
-          response: `Check above - links are there! 🎮`,
-          sent: false
-        };
-      }
+      // Mandy only responds when her name is mentioned (to avoid interrupting game time)
+      const mentionsMandy = userMsgLower.includes('mandy');
       
-      // For most messages after mini apps are shared, just acknowledge briefly or don't respond
-      // This prevents double messaging
-      if (userMsgLower.length < 20 && (userMsgLower.includes('ok') || userMsgLower.includes('cool') || userMsgLower.includes('thanks') || userMsgLower.includes('got it'))) {
+      // If user is asking for a game, that's already handled above
+      // Otherwise, only respond if Mandy's name is mentioned
+      if (!mentionsMandy) {
+        // Don't respond if Mandy's name isn't mentioned
         return {
           response: null,
-          sent: true  // Don't send anything for simple acknowledgments
+          sent: true  // Silent - let them play games without interruption
         };
       }
       
-      // Otherwise, for normal conversation after mini apps are shared, generate a conversational response
+      // User mentioned Mandy - generate a conversational response
       // But keep it brief and encourage playing games
       return await this.generateConversationalResponse(chatId, userMessage, conversation, 0);
       
@@ -762,6 +785,110 @@ Return ONLY valid JSON, no other text.`;
     } catch (error) {
       console.error(`❌ [Mandy] Error getting mini app data:`, error);
       return null;
+    }
+  }
+
+  /**
+   * Share one random mini app that hasn't been sent yet
+   * @param {string} chatId - Chat ID
+   * @param {string} sessionId - Session ID
+   * @param {Array<string>} sentGameIds - Array of app IDs that have already been sent
+   * @returns {Promise<boolean>} True if a game was sent, false if all games have been sent
+   */
+  async shareOneRandomMiniApp(chatId, sessionId, sentGameIds = []) {
+    try {
+      const miniApps = config.agents.mandy.miniApps || {};
+      
+      // Get all available apps
+      const allApps = Object.entries(miniApps).filter(([_, appConfig]) => {
+        const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
+        return appId && !appId.includes('your_');
+      });
+      
+      if (allApps.length === 0) {
+        console.warn(`⚠️  [Mandy] No mini apps configured - cannot share`);
+        return false;
+      }
+      
+      // Filter out already sent games
+      const unsentApps = allApps.filter(([_, appConfig]) => {
+        const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
+        return !sentGameIds.includes(appId);
+      });
+      
+      if (unsentApps.length === 0) {
+        console.log(`✅ [Mandy] All ${allApps.length} games have already been sent`);
+        return false;
+      }
+      
+      // Pick a random unsent game
+      const randomIndex = Math.floor(Math.random() * unsentApps.length);
+      const [appName, appConfig] = unsentApps[randomIndex];
+      
+      const appId = typeof appConfig === 'string' ? appConfig : appConfig.id;
+      const appHandle = typeof appConfig === 'object' ? appConfig.handle : appName;
+      const appDisplayName = typeof appConfig === 'object' ? appConfig.name : appName;
+      const appDescription = typeof appConfig === 'object' ? appConfig.description : null;
+      const appIconUrl = typeof appConfig === 'object' ? appConfig.iconUrl : null;
+      
+      console.log(`🎮 [Mandy] Sharing random mini app: ${appDisplayName} (${appId})`);
+      console.log(`   Remaining unsent games: ${unsentApps.length - 1}/${allApps.length}`);
+      
+      // Create session for this game
+      const sessionName = `${sessionId} - ${appDisplayName}`;
+      const session = await this.createMiniAppSession(chatId, appId, sessionName);
+      
+      // Create rich content block
+      const richContentBlock = {
+        type: 'micro_app_instance_card',
+        data: {
+          appId: appId,
+          instanceId: session.instanceId,
+          handle: appHandle,
+          name: appDisplayName,
+          shareCode: session.shareCode,
+          ...(appDescription && { description: appDescription }),
+          ...(appIconUrl && { iconUrl: appIconUrl })
+        },
+        order: 0
+      };
+      
+      // Messages for first game vs subsequent games
+      const firstGameMessages = [
+        `Alright, I've got a fun game for you! 🎮 This will help me get to know you better - the more you play, the better I can match you!`,
+        `Here's a game I think you'll love! 🎮 It's super fun and will help me find you the perfect matches!`,
+        `I'm sending you a game now! 🎮 It's actually really fun, promise! Play it and I'll learn all about what makes you awesome!`,
+        `Time for a game! 🎮 This is way more fun than answering boring questions - give it a try and help me get to know you!`
+      ];
+      
+      const moreGameMessages = [
+        `Here's another game for you! 🎮`,
+        `Want another one? Here you go! 🎮`,
+        `Sure thing! Here's another fun game! 🎮`,
+        `Of course! Here's another one! 🎮`
+      ];
+      
+      const message = sentGameIds.length === 0
+        ? firstGameMessages[Math.floor(Math.random() * firstGameMessages.length)]
+        : moreGameMessages[Math.floor(Math.random() * moreGameMessages.length)];
+      
+      console.log(`📤 [Mandy] Sending 1 mini app card: ${appDisplayName}`);
+      await this.client.sendMessage(chatId, message, [richContentBlock]);
+      
+      // Update interview state to track this sent game
+      const currentState = groupProfileStorage.getInterviewState(chatId) || {};
+      const updatedSentGameIds = [...sentGameIds, appId];
+      groupProfileStorage.setInterviewState(chatId, {
+        ...currentState,
+        sentGameIds: updatedSentGameIds
+      });
+      
+      console.log(`✅ [Mandy] Sent game ${appDisplayName}. Total sent: ${updatedSentGameIds.length}/${allApps.length}`);
+      
+      return true;
+    } catch (error) {
+      console.error(`❌ [Mandy] Error sharing random mini app:`, error);
+      throw error;
     }
   }
 
