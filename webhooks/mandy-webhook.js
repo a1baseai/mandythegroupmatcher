@@ -282,27 +282,6 @@ class MandyWebhook extends BaseWebhook {
         };
       }
       
-      // Check if profile already exists for this chat
-      const existingProfile = groupProfileStorage.getProfileByChatId(chatId);
-      
-      if (existingProfile) {
-        // Check if we should poll for mini app data and update profile
-        const hasMiniAppSessions = existingProfile.miniAppSessions && Object.keys(existingProfile.miniAppSessions).length > 0;
-        
-        if (hasMiniAppSessions) {
-          // Poll for mini app data in background
-          this.pollAndUpdateProfileFromMiniApps(chatId, existingProfile).catch(err => {
-            console.error(`❌ [Mandy] Error polling mini app data:`, err);
-          });
-        }
-        
-        console.log(`✅ [Mandy] Profile already exists for chat ${chatId}`);
-        return {
-          response: "Your profile is all set! Sit tight and wait for a match! 🎉",
-          sent: false
-        };
-      }
-      
       // NEW FLOW: Check if mini apps have been shared
       const interviewState = groupProfileStorage.getInterviewState(chatId);
       const miniAppsShared = interviewState?.miniAppsShared || false;
@@ -317,10 +296,11 @@ class MandyWebhook extends BaseWebhook {
         });
       }
       
-      // Check if user is asking for another game
+      // Check if user is asking for another game (only if Mandy's name is mentioned)
       const userMsgLower = userMessage.toLowerCase();
+      const mentionsMandy = userMsgLower.includes('mandy');
       const askingForGame = userMsgLower.includes('another') || 
-                           userMsgLower.includes('more') || 
+                           userMsgLower.includes('more') ||
                            userMsgLower.includes('next') ||
                            userMsgLower.includes('game') ||
                            userMsgLower.includes('send') ||
@@ -329,8 +309,8 @@ class MandyWebhook extends BaseWebhook {
       // Get list of sent games from interview state
       const sentGameIds = interviewState?.sentGameIds || [];
       
-      // If user is asking for a game, send one
-      if (askingForGame && miniAppsShared) {
+      // If user is asking for a game AND mentioned Mandy, send one
+      if (askingForGame && mentionsMandy && miniAppsShared) {
         const result = await this.shareOneRandomMiniApp(chatId, currentSessionId, sentGameIds);
         if (result) {
           return {
@@ -417,20 +397,32 @@ class MandyWebhook extends BaseWebhook {
         }
       }
       
-      // Step 3: Mini apps shared, poll for data and create profile
-      console.log(`📊 [Mandy] Mini apps shared - checking for data and creating profile`);
-      
+      // Step 3: Silently update/create profile in background (no announcements)
       // Get session ID from interview state
       const currentState = groupProfileStorage.getInterviewState(chatId) || {};
       const pollSessionId = currentState.sessionId || `mandy-${chatId}-${Date.now()}`;
       
-      // Poll for data and create profile in background
-      this.pollAndCreateProfileFromMiniApps(chatId, pollSessionId).catch(err => {
-        console.error(`❌ [Mandy] Error creating profile from mini apps:`, err);
-      });
+      // Check if profile exists - if so, update it silently in background
+      const existingProfile = groupProfileStorage.getProfileByChatId(chatId);
+      if (existingProfile) {
+        // Profile exists - silently update it with mini app data in background
+        const hasMiniAppSessions = existingProfile.miniAppSessions && Object.keys(existingProfile.miniAppSessions).length > 0;
+        
+        if (hasMiniAppSessions) {
+          // Poll for mini app data in background (silent update - no user notification)
+          this.pollAndUpdateProfileFromMiniApps(chatId, existingProfile).catch(err => {
+            console.error(`❌ [Mandy] Error polling mini app data:`, err);
+          });
+        }
+      } else {
+        // No profile yet - create one in background (silent - no user notification)
+        this.pollAndCreateProfileFromMiniApps(chatId, pollSessionId).catch(err => {
+          console.error(`❌ [Mandy] Error creating profile from mini apps:`, err);
+        });
+      }
       
       // Mandy only responds when her name is mentioned (to avoid interrupting game time)
-      const mentionsMandy = userMsgLower.includes('mandy');
+      // mentionsMandy is already declared above
       
       // If user is asking for a game, that's already handled above
       // Otherwise, only respond if Mandy's name is mentioned
