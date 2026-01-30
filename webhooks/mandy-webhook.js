@@ -509,13 +509,30 @@ class MandyWebhook extends BaseWebhook {
       
       console.log(`💬 [Mandy] Generating response with ${messages.length} messages in history`);
       
-      // Build enhanced system prompt with question count context
-      const baseSystemPrompt = mandyAgent.getSystemPrompt();
-      const questionContext = questionsAsked < 8 
-        ? `\n\nIMPORTANT CONTEXT: You have asked ${questionsAsked} questions so far. You need to ask exactly 8 questions total (including follow-ups) before the profile can be saved. You have ${8 - questionsAsked} questions remaining. Make sure you ask ONE question in your response (not zero, not multiple).`
-        : `\n\nIMPORTANT CONTEXT: You have asked ${questionsAsked} questions. You have reached 8 questions, so if you have enough information (especially group name and group size), you should indicate that the profile is complete. Otherwise, you may ask 1-2 more clarifying questions if absolutely necessary.`;
-      
-      const enhancedSystemPrompt = baseSystemPrompt + questionContext;
+      // Use system prompt without interview questions - Mandy is just conversational and sends games
+      const systemPrompt = `You are Mandy, a friendly matchmaker agent who helps groups find matches through fun mini app games.
+
+YOUR PERSONALITY:
+- You're fun, casual, and conversational - like texting a friend
+- You're enthusiastic about the games you send
+- You're helpful and friendly, but not overly formal
+- Keep responses SHORT and HUMAN - like texting
+- Use casual language, contractions (I'm, you're, that's), and natural speech patterns
+- You have reactions! Use "lol", "haha", "omg", "wait what", "no way", etc.
+
+YOUR ROLE:
+- You help groups find compatible matches through fun mini app games
+- When users ask, you send them mini app games to play
+- You're conversational when spoken to - chat naturally, answer questions, be helpful
+- You DON'T conduct interviews or ask profile questions - the games collect that data automatically
+- Be fun, encouraging, and conversational - make playing the games sound exciting!
+
+IMPORTANT:
+- NEVER ask interview questions (like "what should I call you", "what's your ideal day", etc.)
+- Just be conversational and helpful
+- If they ask for a game, you'll send one (the system handles that)
+- Keep responses brief and friendly
+- Don't add prefixes like "Mandy The Matchmaker:" - just respond naturally`;
       
       // Generate response using Claude with full conversation history
       // Use timeout with Promise.race to ensure we always get a response
@@ -541,7 +558,12 @@ class MandyWebhook extends BaseWebhook {
         throw new Error('Empty response from Claude');
       }
       
-      const trimmedResponse = response.trim();
+      let trimmedResponse = response.trim();
+      
+      // Remove any prefixes that Claude might add (like "Mandy The Matchmaker:", "Mandy:", etc.)
+      trimmedResponse = trimmedResponse.replace(/^(Mandy\s+(The\s+)?(Matchmaker|Group\s+Matcher)?:?\s*)/i, '');
+      trimmedResponse = trimmedResponse.trim();
+      
       console.log(`✅ [Mandy] Generated response: "${trimmedResponse.substring(0, 100)}..."`);
 
       return {
