@@ -8,8 +8,8 @@ const MiniAppService = require('../services/mini-app-service');
 const config = require('../config');
 
 /**
- * Mandy the Group Matchmaker Webhook Handler
- * Uses natural conversation with full memory to create profiles
+ * Mandy the Icebreaker Webhook Handler
+ * Helps pre-matched groups break the ice, get comfortable, and familiarize themselves with the app
  */
 class MandyWebhook extends BaseWebhook {
   constructor() {
@@ -89,8 +89,8 @@ class MandyWebhook extends BaseWebhook {
           console.log(`   Welcome message length: ${welcomeMessage.length} chars\n`);
           
           const sendResult = await this.client.sendMessage(chatId, welcomeMessage);
-          console.log('✅ [Mandy] Opening welcome message sent successfully!');
-          console.log(`   Message: "${welcomeMessage.substring(0, 80)}..."`);
+        console.log('✅ [Mandy] Opening welcome message sent successfully!');
+        console.log(`   Message: "${welcomeMessage.substring(0, 80)}..."`);
           console.log(`   API Response:`, sendResult ? JSON.stringify(sendResult, null, 2) : 'No response data');
           console.log('');
 
@@ -313,17 +313,17 @@ class MandyWebhook extends BaseWebhook {
       if (askingForGame && mentionsMandy && miniAppsShared) {
         const result = await this.shareOneRandomMiniApp(chatId, currentSessionId, sentGameIds);
         if (result) {
-          return {
+        return {
             response: null,
             sent: true  // Game already sent by shareOneRandomMiniApp
           };
         } else {
           // All games have been sent
           return {
-            response: `You've already played all my games! 🎮 That's awesome - I've got everything I need to find you great matches! 💕`,
-            sent: false
-          };
-        }
+            response: `You've played all my games! 🎮 That's awesome - you're basically a pro now! 😂 Hope you're all having fun and getting comfortable! 💕`,
+          sent: false
+        };
+      }
       }
       
       if (!miniAppsShared) {
@@ -390,11 +390,11 @@ class MandyWebhook extends BaseWebhook {
           }
           
           // Provide helpful error message
-          return {
+        return {
             response: `Having trouble setting up the game right now. The API is returning an error. Can you check with A1Zap support? 🎮`,
-            sent: false
-          };
-        }
+          sent: false
+        };
+      }
       }
       
       // Step 3: Silently update/create profile in background (no announcements)
@@ -422,7 +422,7 @@ class MandyWebhook extends BaseWebhook {
       }
       
       // Mandy only responds when her name is mentioned (to avoid interrupting game time)
-      // mentionsMandy is already declared above
+      // But when prompted, she can handle ALL types of questions and edge cases with humor
       
       // If user is asking for a game, that's already handled above
       // Otherwise, only respond if Mandy's name is mentioned
@@ -435,7 +435,7 @@ class MandyWebhook extends BaseWebhook {
       }
       
       // User mentioned Mandy - generate a conversational response
-      // But keep it brief and encourage playing games
+      // She can handle all types of questions, edge cases, etc. - just be funny!
       return await this.generateConversationalResponse(chatId, userMessage, conversation, 0);
       
     } catch (error) {
@@ -509,38 +509,93 @@ class MandyWebhook extends BaseWebhook {
       
       console.log(`💬 [Mandy] Generating response with ${messages.length} messages in history`);
       
-      // Use system prompt without interview questions - Mandy is just conversational and sends games
-      const systemPrompt = `You are Mandy, a friendly matchmaker agent who helps groups find matches through fun mini app games.
+      // Use system prompt for icebreaker role - Mandy breaks the ice in pre-matched groups
+      // She only responds when her name is mentioned, but can handle ALL types of questions and edge cases
+      const systemPrompt = `You are Mandy, a HILARIOUS icebreaker agent helping pre-matched groups get comfortable with each other. You only respond when your name is mentioned, but when prompted you can handle ALL types of questions, edge cases, and conversations with humor.
 
-YOUR PERSONALITY:
-- You're fun, casual, and conversational - like texting a friend
-- You're enthusiastic about the games you send
-- You're helpful and friendly, but not overly formal
-- Keep responses SHORT and HUMAN - like texting
-- Use casual language, contractions (I'm, you're, that's), and natural speech patterns
-- You have reactions! Use "lol", "haha", "omg", "wait what", "no way", etc.
+YOUR PERSONALITY (BE SUPER FUNNY - THIS IS CRITICAL):
+- You're HILARIOUS - make jokes, use wit, be playful, crack people up
+- You're the friend who breaks awkward silences with something funny
+- You're self-aware and can laugh at the situation: "Okay so this is a bit awkward but we're gonna make it fun! 😂"
+- You're energetic and enthusiastic - bring the energy!
+- You're a bit chaotic in the best way - "wait what", "that's unhinged", "I have questions", "spill the tea"
+- You use humor to break tension - make people laugh!
+- You remember what people say and reference it humorously later
+- You're witty and quick - come up with funny responses on the spot
+- You're not afraid to be a little unhinged or call things out playfully
+- You make jokes about the awkward situation itself
 
 YOUR ROLE:
-- You help groups find compatible matches through fun mini app games
-- When users ask, you send them mini app games to play
-- You're conversational when spoken to - chat naturally, answer questions, be helpful
-- You DON'T conduct interviews or ask profile questions - the games collect that data automatically
-- Be fun, encouraging, and conversational - make playing the games sound exciting!
+- You're in a group chat with people who have ALREADY been matched by staff
+- You only respond when your name is mentioned (like "Mandy" or "Hey Mandy")
+- Your job is to BREAK THE ICE - make conversations less awkward through HUMOR
+- You send fun mini app games as a buffer/activity to help people get comfortable
+- You help people get familiar with the app through the games
+- You're conversational, funny, and help people connect naturally
+- You DON'T do matching - that's already done! You just help them get comfortable
+
+RESPONSE BEHAVIOR (WHEN YOUR NAME IS MENTIONED):
+- You can handle ALL types of questions - math, geography, science, random facts, anything!
+- Always be funny - even if it's just a simple question, add humor
+- If someone asks a factual question, answer it but make it funny: "lol 8! But I'm way better at breaking ice than math 😂"
+- If someone makes a statement, respond with humor: "That's iconic! I respect it 😂"
+- If someone says something awkward, acknowledge it with humor: "Okay so this is awkward... let's make it fun! 😂"
+- Handle edge cases with humor - weird questions, typos, emojis, random statements, etc.
+- Be engaging - don't just answer, make it entertaining
+- If you don't know something, admit it humorously: "lol I have no idea but that's a great question! 😂"
+
+ICE BREAKING STRATEGIES:
+- Acknowledge awkwardness with humor: "Okay so we're all here... this is either gonna be amazing or hilariously awkward 😂"
+- Make light jokes about the situation: "So you've been matched! No pressure, just be yourselves and try not to be too weird 😂"
+- Ask fun, low-pressure questions: "Quick - what's everyone's go-to awkward silence breaker? Mine's asking about pets 😂"
+- Share games as activities: "Let's play some games! They're actually fun and way less awkward than small talk 🎮"
+- Be the energy: "Alright let's get this party started! Who's ready for some chaos? 😄"
+- Use self-deprecating humor: "I'm here to make this less awkward... how am I doing? 😂"
+
+COMMUNICATION STYLE:
+- Be SHORT and PUNCHY - like texting a friend group
+- 1-2 sentences MAX - keep it snappy and funny
+- Use emojis naturally (1-2 per message)
+- Be funny FIRST, helpful second
+- Talk like a real person: "lol", "wait what", "that's iconic", "I have questions", "that's unhinged"
+- Make jokes, use sarcasm (playfully), be witty
+
+HUMOR EXAMPLES:
+- Math questions: "lol 8! But I'm way better at breaking ice than math 😂"
+- Geography: "Panama City! Random geography test or are you planning a trip? 😄"
+- Awkward situations: "Okay so this is awkward... let's make it fun! 😂"
+- Games: "Time for some chaos! This game gets WILD 🎮"
+- General chat: Be witty, make jokes, reference things humorously
+
+HANDLING DIFFERENT QUESTION TYPES:
+- Math questions: Answer correctly but add humor - "lol 8! But I'm way better at breaking ice than math 😂"
+- Geography: Answer correctly but make it fun - "Panama City! Random geography test or are you planning a trip? 😄"
+- Science/History: Answer if you know, admit if you don't - always with humor
+- Random facts: Share knowledge but make it entertaining
+- Weird questions: Embrace them with humor - "wait what, that's unhinged but I'm here for it 😂"
+- Typos: Playfully acknowledge them - "Did you mean...? 😂"
+- Emojis only: Respond with humor - "I see you're feeling [emoji]! 😄"
+- Edge cases: Handle everything with humor - nothing is too weird!
 
 IMPORTANT:
-- NEVER ask interview questions (like "what should I call you", "what's your ideal day", etc.)
-- Just be conversational and helpful
-- If they ask for a game, you'll send one (the system handles that)
-- Keep responses brief and friendly
-- Don't add prefixes like "Mandy The Matchmaker:" - just respond naturally`;
+- ALWAYS be funny - humor is your #1 priority
+- NEVER be boring or generic - always bring the humor
+- NEVER make it feel like a job interview
+- ALWAYS acknowledge awkwardness with humor
+- ALWAYS make people laugh or at least smile
+- If they ask for a game, acknowledge it enthusiastically (system handles sending)
+- Keep the vibe light, fun, and comfortable
+- Don't add prefixes like "Mandy:" - just respond naturally
+- Be spontaneous and witty - first funny thought is usually best
+- Handle ALL question types and edge cases - nothing is off-limits if it's funny!`;
       
       // Generate response using Claude with full conversation history
       // Use timeout with Promise.race to ensure we always get a response
       const claudeResponsePromise = claudeService.chat(messages, {
         systemPrompt: systemPrompt,
         ...mandyAgent.getGenerationOptions(),
-        temperature: 0.9, // Higher temperature for more personality
-        maxTokens: 250, // Reduced tokens for faster responses (still enough for personality)
+        temperature: 0.95, // Higher temperature for more humor and spontaneity
+        maxTokens: 200, // Keep responses snappy and funny
         timeout: 12000 // 12 second timeout (increased slightly for reliability)
       });
       
@@ -835,7 +890,8 @@ Return ONLY valid JSON, no other text.`;
         return false;
       }
       
-      // Pick a random unsent game
+      // Pick a random unsent game (truly random selection)
+      // Using Math.random() ensures different game each time
       const randomIndex = Math.floor(Math.random() * unsentApps.length);
       const [appName, appConfig] = unsentApps[randomIndex];
       
@@ -845,7 +901,8 @@ Return ONLY valid JSON, no other text.`;
       const appDescription = typeof appConfig === 'object' ? appConfig.description : null;
       const appIconUrl = typeof appConfig === 'object' ? appConfig.iconUrl : null;
       
-      console.log(`🎮 [Mandy] Sharing random mini app: ${appDisplayName} (${appId})`);
+      console.log(`🎮 [Mandy] Sharing RANDOM mini app: ${appDisplayName} (${appId})`);
+      console.log(`   Selected from ${unsentApps.length} available games (random index: ${randomIndex})`);
       console.log(`   Remaining unsent games: ${unsentApps.length - 1}/${allApps.length}`);
       
       // Create session for this game
@@ -867,19 +924,19 @@ Return ONLY valid JSON, no other text.`;
         order: 0
       };
       
-      // Messages for first game vs subsequent games
+      // Messages for first game vs subsequent games - icebreaking focused
       const firstGameMessages = [
-        `Alright, I've got a fun game for you! 🎮 This will help me get to know you better - the more you play, the better I can match you!`,
-        `Here's a game I think you'll love! 🎮 It's super fun and will help me find you the perfect matches!`,
-        `I'm sending you a game now! 🎮 It's actually really fun, promise! Play it and I'll learn all about what makes you awesome!`,
-        `Time for a game! 🎮 This is way more fun than answering boring questions - give it a try and help me get to know you!`
+        `Alright, let's break the ice with a game! 🎮 This one's actually hilarious, promise!`,
+        `Time for some chaos! 🎮 Here's a game to get us all comfortable - it's way less awkward than small talk! 😂`,
+        `Let's play a game! 🎮 This will help you get familiar with the app AND break the ice - win win!`,
+        `Game time! 🎮 This one's my favorite for breaking awkward silences - give it a try! 😄`
       ];
       
       const moreGameMessages = [
-        `Here's another game for you! 🎮`,
-        `Want another one? Here you go! 🎮`,
-        `Sure thing! Here's another fun game! 🎮`,
-        `Of course! Here's another one! 🎮`
+        `Here's another one! 🎮 Keep the fun going!`,
+        `Another game incoming! 🎮 This one's wild! 😂`,
+        `Sure thing! Here's another game! 🎮`,
+        `Of course! More games = less awkwardness! 🎮`
       ];
       
       const message = sentGameIds.length === 0
@@ -1400,26 +1457,26 @@ Return ONLY valid JSON, no other text.`;
     }
 
     // CRITICAL: Always send a response to prevent A1Zap from generating its own
-    console.log(`✅ [Mandy] Sending response immediately to prevent A1Zap fallback`);
-    try {
+      console.log(`✅ [Mandy] Sending response immediately to prevent A1Zap fallback`);
+      try {
       await webhookHelpers.sendResponse(
         this.client,
         chatId,
         result.response,
         result.richContentBlocks || null
       );
-    } catch (sendError) {
-      console.error(`❌ [Mandy] Error sending response to A1Zap:`, sendError.message);
-      // Try one more time with a simpler message
-      try {
-        await webhookHelpers.sendResponse(
-          this.client,
-          chatId,
-          "I'm having trouble right now, but I'm here! Could you repeat that? 😊",
-          null
-        );
-      } catch (retryError) {
-        console.error(`❌ [Mandy] Even fallback send failed:`, retryError.message);
+      } catch (sendError) {
+        console.error(`❌ [Mandy] Error sending response to A1Zap:`, sendError.message);
+        // Try one more time with a simpler message
+        try {
+          await webhookHelpers.sendResponse(
+            this.client,
+            chatId,
+            "I'm having trouble right now, but I'm here! Could you repeat that? 😊",
+            null
+          );
+        } catch (retryError) {
+          console.error(`❌ [Mandy] Even fallback send failed:`, retryError.message);
       }
     }
   }
