@@ -114,11 +114,11 @@ module.exports = {
           handle: process.env.MINI_APP_05_HANDLE || 'daily-draw',
           name: process.env.MINI_APP_05_NAME || 'Daily Draw'
         },
-        miniApp06: {
-          id: process.env.MINI_APP_06_ID || 'xs7e97ta32zdttrq631y78kg9s7yfan3',
-          handle: process.env.MINI_APP_06_HANDLE || 'swing-stop',
-          name: process.env.MINI_APP_06_NAME || 'Swing Stop'
-        },
+miniApp06: {
+    id: process.env.MINI_APP_06_ID || 'xs7e97ta32zdttrq631y78kg9s7yfan3',
+    handle: process.env.MINI_APP_06_HANDLE || 'risk-slider-yd17',
+    name: process.env.MINI_APP_06_NAME || 'Risk Slider'
+  },
         miniApp07: {
           id: process.env.MINI_APP_07_ID || 'xs73tg9hjsva2r3krw9g3rz7w17ye9g6',
           handle: process.env.MINI_APP_07_HANDLE || 'ephemeral-blessings-streaks',
@@ -134,11 +134,11 @@ module.exports = {
           handle: process.env.MINI_APP_09_HANDLE || 'word-vaporizer',
           name: process.env.MINI_APP_09_NAME || 'Word Vaporizer'
         },
-        miniApp10: {
-          id: process.env.MINI_APP_10_ID || 'xs78tggbdej2s5j01beasxdm757yfmbp',
-          handle: process.env.MINI_APP_10_HANDLE || 'vibe-blaster',
-          name: process.env.MINI_APP_10_NAME || 'Vibe Blaster'
-        },
+miniApp10: {
+    id: process.env.MINI_APP_10_ID || 'xs78tggbdej2s5j01beasxdm757yfmbp',
+    handle: process.env.MINI_APP_10_HANDLE || 'duck-blaster-3000-pbl6',
+    name: process.env.MINI_APP_10_NAME || 'Duck Blaster 3000'
+  },
         miniApp11: {
           id: process.env.MINI_APP_11_ID || 'xs7cyy3am9sqax67bwpby0t7bn7yfpa7',
           handle: process.env.MINI_APP_11_HANDLE || 'anonpost',
@@ -154,16 +154,21 @@ module.exports = {
           handle: process.env.MINI_APP_13_HANDLE || 'clown-toss-physics',
           name: process.env.MINI_APP_13_NAME || 'Clown Toss Physics'
         },
-        miniApp14: {
-          id: process.env.MINI_APP_14_ID || 'xs78bjpjfsf4g48wqx87h0f4b97y89xn',
-          handle: process.env.MINI_APP_14_HANDLE || 'fluid-flows',
-          name: process.env.MINI_APP_14_NAME || 'Fluid Flows'
-        },
-        miniApp15: {
-          id: process.env.MINI_APP_15_ID || 'xs744558ywr052q50g7kjytt85801169',
-          handle: process.env.MINI_APP_15_HANDLE || 'rate-my-rent',
-          name: process.env.MINI_APP_15_NAME || 'Rate My Rent'
-        }
+miniApp14: {
+    id: process.env.MINI_APP_14_ID || 'xs78bjpjfsf4g48wqx87h0f4b97y89xn',
+    handle: process.env.MINI_APP_14_HANDLE || 'grapher',
+    name: process.env.MINI_APP_14_NAME || 'Grapher'
+  },
+miniApp15: {
+    id: process.env.MINI_APP_15_ID || 'xs744558ywr052q50g7kjytt85801169',
+    handle: process.env.MINI_APP_15_HANDLE || 'wolverine-workouts',
+    name: process.env.MINI_APP_15_NAME || 'Wolverine Workouts'
+  },
+  miniApp16: {
+    id: process.env.MINI_APP_16_ID || 'xs7ewa9qdjqmfe11adhhetb57x80hxs6',
+    handle: process.env.MINI_APP_16_HANDLE || 'lie-reveal-tho1',
+    name: process.env.MINI_APP_16_NAME || 'Lie Reveal'
+  }
       }
     }
   },
