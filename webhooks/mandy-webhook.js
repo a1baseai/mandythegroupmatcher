@@ -5,6 +5,7 @@ const mandyAgent = require('../agents/mandy-agent');
 const groupProfileStorage = require('../services/group-profile-storage');
 const webhookHelpers = require('../services/webhook-helpers');
 const MiniAppService = require('../services/mini-app-service');
+const activityPlanningService = require('../services/activity-planning-service');
 const config = require('../config');
 
 /**
@@ -509,9 +510,37 @@ class MandyWebhook extends BaseWebhook {
       
       console.log(`💬 [Mandy] Generating response with ${messages.length} messages in history`);
       
+      // Check if this is an activity planning request
+      const cleanUserMessage = userMessage.replace(/^[^:]+:\s*/, '').toLowerCase();
+      const activityKeywords = ['restaurant', 'food', 'dinner', 'lunch', 'eat', 'mini golf', 'escape room', 'bowling', 'arcade', 'activity', 'activities', 'what to do', 'where to go', 'plan', 'planning', 'italian', 'pizza', 'sushi', 'mexican', 'chinese', 'thai', 'fun', 'go out', 'hang out'];
+      const isActivityRequest = activityKeywords.some(keyword => cleanUserMessage.includes(keyword));
+      
+      let activityContext = '';
+      if (isActivityRequest) {
+        console.log(`🎯 [Mandy] Activity planning request detected: "${cleanUserMessage}"`);
+        try {
+          // Extract activity type and location from the message
+          const activityMatch = cleanUserMessage.match(/(?:find|looking for|want|need|get|go to|go for)\s+([^.!?]+)/i);
+          const activityQuery = activityMatch ? activityMatch[1].trim() : cleanUserMessage;
+          
+          // Try to extract location (e.g., "in Boston", "near Harvard", etc.)
+          const locationMatch = cleanUserMessage.match(/(?:in|near|at|around)\s+([^.!?]+)/i);
+          const location = locationMatch ? locationMatch[1].trim() : '';
+          
+          const searchResult = await activityPlanningService.searchActivities(activityQuery, location);
+          if (searchResult.success) {
+            activityContext = `\n\nACTIVITY PLANNING CONTEXT:\n${activityPlanningService.formatActivityRecommendations(searchResult)}\n\nUse this information to help the group, but keep your response funny and engaging!`;
+            console.log(`✅ [Mandy] Activity planning info retrieved`);
+          }
+        } catch (error) {
+          console.error(`❌ [Mandy] Error getting activity planning info:`, error);
+          // Continue without activity context - Mandy can still help
+        }
+      }
+      
       // Use system prompt for icebreaker role - Mandy breaks the ice in pre-matched groups
       // She only responds when her name is mentioned, but can handle ALL types of questions and edge cases
-      const systemPrompt = `You are Mandy, a HILARIOUS icebreaker agent helping pre-matched groups get comfortable with each other. You only respond when your name is mentioned, but when prompted you can handle ALL types of questions, edge cases, and conversations with humor.
+      const systemPrompt = `You are Mandy, a HILARIOUS icebreaker agent helping pre-matched groups get comfortable with each other. You only respond when your name is mentioned, but when prompted you can handle ALL types of questions, edge cases, and conversations with humor.${activityContext}
 
 YOUR PERSONALITY (BE SUPER FUNNY - THIS IS CRITICAL):
 - You're HILARIOUS - make jokes, use wit, be playful, crack people up
@@ -531,6 +560,8 @@ YOUR ROLE:
 - Your job is to BREAK THE ICE - make conversations less awkward through HUMOR
 - You send fun mini app games as a buffer/activity to help people get comfortable
 - You help people get familiar with the app through the games
+- You help groups PLAN ACTIVITIES - find restaurants, mini golf, escape rooms, bowling, arcades, and other fun things to do together
+- You can search the internet and pull information to help groups make decisions about where to go and what to do
 - You're conversational, funny, and help people connect naturally
 - You DON'T do matching - that's already done! You just help them get comfortable
 
@@ -551,6 +582,7 @@ ICE BREAKING STRATEGIES:
 - Share games as activities: "Let's play some games! They're actually fun and way less awkward than small talk 🎮"
 - Be the energy: "Alright let's get this party started! Who's ready for some chaos? 😄"
 - Use self-deprecating humor: "I'm here to make this less awkward... how am I doing? 😂"
+- Help plan activities: "Want to find a good Italian restaurant? I can help with that! Or mini golf? Escape rooms? Let's figure out what sounds fun! 🎯"
 
 COMMUNICATION STYLE:
 - Be SHORT and PUNCHY - like texting a friend group
@@ -571,6 +603,7 @@ HANDLING DIFFERENT QUESTION TYPES:
 - Math questions: Answer correctly but add humor - "lol 8! But I'm way better at breaking ice than math 😂"
 - Geography: Answer correctly but make it fun - "Panama City! Random geography test or are you planning a trip? 😄"
 - Science/History: Answer if you know, admit if you don't - always with humor
+- Activity planning: Help groups find restaurants, mini golf, escape rooms, bowling, arcades, etc. - use web search and provide helpful links and suggestions with humor
 - Random facts: Share knowledge but make it entertaining
 - Weird questions: Embrace them with humor - "wait what, that's unhinged but I'm here for it 😂"
 - Typos: Playfully acknowledge them - "Did you mean...? 😂"
