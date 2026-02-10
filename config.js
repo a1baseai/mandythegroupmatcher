@@ -94,81 +94,46 @@ module.exports = {
           handle: process.env.MINI_APP_01_HANDLE || 'click-splosion',
           name: process.env.MINI_APP_01_NAME || 'Click Splosion'
         },
-        miniApp02: {
-          id: process.env.MINI_APP_02_ID || 'xs74mayvzex50abzj8frrk8a0h7ya1fa',
-          handle: process.env.MINI_APP_02_HANDLE || 'neon-boost',
-          name: process.env.MINI_APP_02_NAME || 'Neon Boost'
-        },
         miniApp03: {
           id: process.env.MINI_APP_03_ID || 'xs79kqye9wqyk0faf582qf7cjn7ybef5',
           handle: process.env.MINI_APP_03_HANDLE || 'smoothy-ship',
           name: process.env.MINI_APP_03_NAME || 'Smoothy Ship'
-        },
-        miniApp04: {
-          id: process.env.MINI_APP_04_ID || 'xs7czxmcq86hkmccrcjxs0dv857y8fgw',
-          handle: process.env.MINI_APP_04_HANDLE || 'word-vaporizer',
-          name: process.env.MINI_APP_04_NAME || 'Word Vaporizer'
-        },
-        miniApp05: {
-          id: process.env.MINI_APP_05_ID || 'xs7cssxv0ebqw583ca4prgfvnx7ycm8r',
-          handle: process.env.MINI_APP_05_HANDLE || 'daily-draw',
-          name: process.env.MINI_APP_05_NAME || 'Daily Draw'
-        },
-miniApp06: {
-    id: process.env.MINI_APP_06_ID || 'xs7e97ta32zdttrq631y78kg9s7yfan3',
-    handle: process.env.MINI_APP_06_HANDLE || 'risk-slider-yd17',
-    name: process.env.MINI_APP_06_NAME || 'Risk Slider'
-  },
-        miniApp07: {
-          id: process.env.MINI_APP_07_ID || 'xs73tg9hjsva2r3krw9g3rz7w17ye9g6',
-          handle: process.env.MINI_APP_07_HANDLE || 'ephemeral-blessings-streaks',
-          name: process.env.MINI_APP_07_NAME || 'Ephemeral Blessings Streaks'
-        },
-        miniApp08: {
-          id: process.env.MINI_APP_08_ID || 'xs77tdm04hwqtpza7cc36kvpyx7ych89',
-          handle: process.env.MINI_APP_08_HANDLE || 'sparkle-entry',
-          name: process.env.MINI_APP_08_NAME || 'Sparkle Entry'
-        },
-        miniApp09: {
-          id: process.env.MINI_APP_09_ID || 'xs7czxmcq86hkmccrcjxs0dv857y8fgw',
-          handle: process.env.MINI_APP_09_HANDLE || 'word-vaporizer',
-          name: process.env.MINI_APP_09_NAME || 'Word Vaporizer'
-        },
-miniApp10: {
-    id: process.env.MINI_APP_10_ID || 'xs78tggbdej2s5j01beasxdm757yfmbp',
-    handle: process.env.MINI_APP_10_HANDLE || 'duck-blaster-3000-pbl6',
-    name: process.env.MINI_APP_10_NAME || 'Duck Blaster 3000'
-  },
-        miniApp11: {
-          id: process.env.MINI_APP_11_ID || 'xs7cyy3am9sqax67bwpby0t7bn7yfpa7',
-          handle: process.env.MINI_APP_11_HANDLE || 'anonpost',
-          name: process.env.MINI_APP_11_NAME || 'AnonPost'
         },
         miniApp12: {
           id: process.env.MINI_APP_12_ID || 'xs74n3mf1fb9qqr7xsky0wfkxx7yfgxq',
           handle: process.env.MINI_APP_12_HANDLE || 'swamp-digger',
           name: process.env.MINI_APP_12_NAME || 'Swamp Digger'
         },
-        miniApp13: {
-          id: process.env.MINI_APP_13_ID || 'xs77enqnwza1t1km1z1nmtcdeh7ye70f',
-          handle: process.env.MINI_APP_13_HANDLE || 'clown-toss-physics',
-          name: process.env.MINI_APP_13_NAME || 'Clown Toss Physics'
+        miniApp16: {
+          id: process.env.MINI_APP_16_ID || 'xs7ewa9qdjqmfe11adhhetb57x80hxs6',
+          handle: process.env.MINI_APP_16_HANDLE || 'lie-reveal-tho1',
+          name: process.env.MINI_APP_16_NAME || 'Lie Reveal'
         },
-miniApp14: {
-    id: process.env.MINI_APP_14_ID || 'xs78bjpjfsf4g48wqx87h0f4b97y89xn',
-    handle: process.env.MINI_APP_14_HANDLE || 'grapher',
-    name: process.env.MINI_APP_14_NAME || 'Grapher'
-  },
-miniApp15: {
-    id: process.env.MINI_APP_15_ID || 'xs744558ywr052q50g7kjytt85801169',
-    handle: process.env.MINI_APP_15_HANDLE || 'wolverine-workouts',
-    name: process.env.MINI_APP_15_NAME || 'Wolverine Workouts'
-  },
-  miniApp16: {
-    id: process.env.MINI_APP_16_ID || 'xs7ewa9qdjqmfe11adhhetb57x80hxs6',
-    handle: process.env.MINI_APP_16_HANDLE || 'lie-reveal-tho1',
-    name: process.env.MINI_APP_16_NAME || 'Lie Reveal'
-  }
+        miniApp17: {
+          id: process.env.MINI_APP_17_ID || 'xs7bjn2zrsttxhawz9p90r6rrh7ybp5x',
+          handle: process.env.MINI_APP_17_HANDLE || 'fluid-flows',
+          name: process.env.MINI_APP_17_NAME || 'Fluid Flows'
+        },
+        miniApp18: {
+          id: process.env.MINI_APP_18_ID || 'xs7c0c44mgrj2ggj7cayj3ekbd7zkdj9',
+          handle: process.env.MINI_APP_18_HANDLE || 'goal-rush',
+          name: process.env.MINI_APP_18_NAME || 'Goal Rush'
+        },
+        miniApp19: {
+          id: process.env.MINI_APP_19_ID || 'xs74c1p1yz0551h5hc649dvqdn7yfaab',
+          handle: process.env.MINI_APP_19_HANDLE || 'reel-deal',
+          name: process.env.MINI_APP_19_NAME || 'Reel Deal'
+        },
+        miniApp20: {
+          id: process.env.MINI_APP_20_ID || 'xs7742w95vcw17byrr7vgsjksx7wwnmb',
+          handle: process.env.MINI_APP_20_HANDLE || 'flappy-95',
+          name: process.env.MINI_APP_20_NAME || 'Flappy 95'
+        },
+        miniApp21: {
+          id: process.env.MINI_APP_21_ID || 'xs7a9db6143badvgv018z0kgwx80t1e7',
+          handle: process.env.MINI_APP_21_HANDLE || 'name-crossword',
+          name: process.env.MINI_APP_21_NAME || 'Name Crossword'
+        }
       }
     }
   },

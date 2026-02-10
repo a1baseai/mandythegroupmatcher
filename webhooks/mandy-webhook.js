@@ -320,7 +320,7 @@ class MandyWebhook extends BaseWebhook {
         } else {
           // All games have been sent
           return {
-            response: `You've played all my games! 🎮 That's awesome - you're basically a pro now! 😂 Hope you're all having fun and getting comfortable! 💕`,
+            response: `You've played all my games! 🎮 That's awesome - you're basically a pro now! 😂 If you want to discover more games, scroll through the Public Zaps feed! Hope you're all having fun and getting comfortable! 💕`,
           sent: false
         };
       }
@@ -890,10 +890,40 @@ Return ONLY valid JSON, no other text.`;
         return false;
       }
       
-      // Pick a random unsent game (truly random selection)
-      // Using Math.random() ensures different game each time
-      const randomIndex = Math.floor(Math.random() * unsentApps.length);
-      const [appName, appConfig] = unsentApps[randomIndex];
+      // Determine which game to send based on priority order
+      let selectedApp = null;
+      
+      // First game: Always send Lie Reveal (miniApp16)
+      if (sentGameIds.length === 0) {
+        const lieRevealId = 'xs7ewa9qdjqmfe11adhhetb57x80hxs6';
+        selectedApp = unsentApps.find(([_, appConfig]) => {
+          const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
+          return appId === lieRevealId;
+        });
+        if (selectedApp) {
+          console.log(`🎮 [Mandy] First game: Always sending Lie Reveal`);
+        }
+      }
+      // Second game: Always send Name Crossword (miniApp21)
+      else if (sentGameIds.length === 1) {
+        const nameCrosswordId = 'xs7a9db6143badvgv018z0kgwx80t1e7';
+        selectedApp = unsentApps.find(([_, appConfig]) => {
+          const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
+          return appId === nameCrosswordId;
+        });
+        if (selectedApp) {
+          console.log(`🎮 [Mandy] Second game: Always sending Name Crossword`);
+        }
+      }
+      
+      // If priority game not found or already sent, pick random from unsent games
+      if (!selectedApp) {
+        const randomIndex = Math.floor(Math.random() * unsentApps.length);
+        selectedApp = unsentApps[randomIndex];
+        console.log(`🎮 [Mandy] Random game selected (index: ${randomIndex})`);
+      }
+      
+      const [appName, appConfig] = selectedApp;
       
       const appId = typeof appConfig === 'string' ? appConfig : appConfig.id;
       const appHandle = typeof appConfig === 'object' ? appConfig.handle : appName;
@@ -901,8 +931,8 @@ Return ONLY valid JSON, no other text.`;
       const appDescription = typeof appConfig === 'object' ? appConfig.description : null;
       const appIconUrl = typeof appConfig === 'object' ? appConfig.iconUrl : null;
       
-      console.log(`🎮 [Mandy] Sharing RANDOM mini app: ${appDisplayName} (${appId})`);
-      console.log(`   Selected from ${unsentApps.length} available games (random index: ${randomIndex})`);
+      console.log(`🎮 [Mandy] Sharing mini app: ${appDisplayName} (${appId})`);
+      console.log(`   Selected from ${unsentApps.length} available games`);
       console.log(`   Remaining unsent games: ${unsentApps.length - 1}/${allApps.length}`);
       
       // Create session for this game
@@ -926,10 +956,10 @@ Return ONLY valid JSON, no other text.`;
       
       // Messages for first game vs subsequent games - icebreaking focused
       const firstGameMessages = [
-        `Alright, let's break the ice with a game! 🎮 This one's actually hilarious, promise!`,
-        `Time for some chaos! 🎮 Here's a game to get us all comfortable - it's way less awkward than small talk! 😂`,
-        `Let's play a game! 🎮 This will help you get familiar with the app AND break the ice - win win!`,
-        `Game time! 🎮 This one's my favorite for breaking awkward silences - give it a try! 😄`
+        `Alright, let's break the ice with a game! 🎮 This one's actually hilarious, promise! You can always ask me for more games if you want!`,
+        `Time for some chaos! 🎮 Here's a game to get us all comfortable - it's way less awkward than small talk! 😂 Feel free to request more games anytime!`,
+        `Let's play a game! 🎮 This will help you get familiar with the app AND break the ice - win win! Just ask if you want more games!`,
+        `Game time! 🎮 This one's my favorite for breaking awkward silences - give it a try! 😄 You can always ask for more games!`
       ];
       
       const moreGameMessages = [
