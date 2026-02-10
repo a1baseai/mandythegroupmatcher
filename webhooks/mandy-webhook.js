@@ -512,25 +512,86 @@ class MandyWebhook extends BaseWebhook {
       
       // Check if this is an activity planning request
       const cleanUserMessage = userMessage.replace(/^[^:]+:\s*/, '').toLowerCase();
+      const fullUserMessage = userMessage.replace(/^[^:]+:\s*/, '');
       const activityKeywords = ['restaurant', 'food', 'dinner', 'lunch', 'eat', 'mini golf', 'escape room', 'bowling', 'arcade', 'activity', 'activities', 'what to do', 'where to go', 'plan', 'planning', 'italian', 'pizza', 'sushi', 'mexican', 'chinese', 'thai', 'fun', 'go out', 'hang out'];
       const isActivityRequest = activityKeywords.some(keyword => cleanUserMessage.includes(keyword));
       
       let activityContext = '';
       if (isActivityRequest) {
-        console.log(`🎯 [Mandy] Activity planning request detected: "${cleanUserMessage}"`);
+        console.log(`🎯 [Mandy] Activity planning request detected: "${fullUserMessage}"`);
         try {
-          // Extract activity type and location from the message
-          const activityMatch = cleanUserMessage.match(/(?:find|looking for|want|need|get|go to|go for)\s+([^.!?]+)/i);
-          const activityQuery = activityMatch ? activityMatch[1].trim() : cleanUserMessage;
+          // Get stored location from interview state
+          const interviewState = groupProfileStorage.getInterviewState(chatId) || {};
+          const storedLocation = interviewState.location || '';
           
-          // Try to extract location (e.g., "in Boston", "near Harvard", etc.)
-          const locationMatch = cleanUserMessage.match(/(?:in|near|at|around)\s+([^.!?]+)/i);
-          const location = locationMatch ? locationMatch[1].trim() : '';
+          // Extract activity type from the message
+          // Look for patterns like "italian restaurant", "where to go for italian food", etc.
+          let activityQuery = '';
+          const queryPatterns = [
+            /(?:find|looking for|want|need|get|go to|go for|where to go for)\s+(.+?)(?:\s+(?:in|near|at|around|$)|$)/i,
+            /(italian|mexican|chinese|thai|sushi|pizza|japanese|indian|french|american)\s+(?:restaurant|food|place|spot)/i,
+            /(?:restaurant|food|place|spot|activity|activities)\s+(?:for|to|that|which)/i
+          ];
+          
+          for (const pattern of queryPatterns) {
+            const match = fullUserMessage.match(pattern);
+            if (match && match[1]) {
+              activityQuery = match[1].trim();
+              break;
+            }
+          }
+          
+          // If no specific query extracted, use keywords from the message
+          if (!activityQuery) {
+            const extractedKeywords = activityKeywords.filter(kw => cleanUserMessage.includes(kw));
+            if (extractedKeywords.length > 0) {
+              activityQuery = extractedKeywords[0];
+              // Add "restaurant" if it's a cuisine type
+              if (['italian', 'mexican', 'chinese', 'thai', 'sushi', 'japanese', 'indian', 'french'].includes(activityQuery)) {
+                activityQuery += ' restaurant';
+              }
+            } else {
+              activityQuery = fullUserMessage;
+            }
+          }
+          
+          // Extract or use stored location
+          let location = activityPlanningService.extractLocation(fullUserMessage, storedLocation);
+          
+          // Store location if we found one and it's different
+          if (location && location !== storedLocation) {
+            const currentState = groupProfileStorage.getInterviewState(chatId) || {};
+            groupProfileStorage.setInterviewState(chatId, {
+              ...currentState,
+              location: location
+            });
+            console.log(`📍 [Mandy] Stored location: ${location}`);
+          }
+          
+          // If no location, we'll ask for it in the response
+          const needsLocation = !location;
+          
+          // Build search query for web search
+          const searchQuery = location 
+            ? `best ${activityQuery} near ${location} restaurants reviews`
+            : `best ${activityQuery} restaurants reviews`;
+          
+          // Note: Web search would be performed here if we had access to the web_search tool
+          // For now, the service will provide helpful links and structure
+          // In production, you could integrate Google Places API or Yelp API here
           
           const searchResult = await activityPlanningService.searchActivities(activityQuery, location);
+          
           if (searchResult.success) {
-            activityContext = `\n\nACTIVITY PLANNING CONTEXT:\n${activityPlanningService.formatActivityRecommendations(searchResult)}\n\nUse this information to help the group, but keep your response funny and engaging!`;
-            console.log(`✅ [Mandy] Activity planning info retrieved`);
+            let contextMessage = `\n\nACTIVITY PLANNING CONTEXT:\n`;
+            if (needsLocation) {
+              contextMessage += `⚠️ IMPORTANT: The user hasn't specified their location yet. Politely ask for their city/area so you can give accurate recommendations. Say something like "What city are you in? I want to find you the best spots nearby!" but keep it funny.\n\n`;
+            }
+            contextMessage += `${activityPlanningService.formatActivityRecommendations(searchResult)}\n\n`;
+            contextMessage += `Use this information to help the group find ${activityQuery}${location ? ` in ${location}` : ''}. Be specific with the recommendations, include the names and details from the search results. Keep your response funny and engaging!`;
+            
+            activityContext = contextMessage;
+            console.log(`✅ [Mandy] Activity planning info retrieved for: ${activityQuery}${location ? ` in ${location}` : ''}`);
           }
         } catch (error) {
           console.error(`❌ [Mandy] Error getting activity planning info:`, error);
