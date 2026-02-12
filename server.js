@@ -66,8 +66,9 @@ app.get('/', (req, res) => {
       health: 'GET /health',
       mandy: 'POST /webhook/mandy',
       groups: 'GET /api/groups',
+      receiveGroup: 'POST /api/groups/receive - Receive group data from main server',
       matches: 'GET /api/matches',
-      match: 'GET/POST /api/match',
+      match: 'GET/POST /api/match - Run matching algorithm and send emails',
       state: 'GET /api/state/:chatId',
       reset: 'DELETE /api/reset/:chatId',
       resetAll: 'DELETE /api/reset-all'
@@ -85,6 +86,7 @@ const handleMatchRequest = async (req, res) => {
     
     const groupMatching = require('./services/group-matching');
     const groupProfileStorage = require('./services/group-profile-storage');
+    const emailService = require('./services/email-service');
     const fs = require('fs');
     const path = require('path');
     
@@ -106,7 +108,7 @@ const handleMatchRequest = async (req, res) => {
     const bestMatch = await groupMatching.findBestMatch();
     
     if (bestMatch) {
-      groupProfileStorage.saveMatch({
+      const matchRecord = {
         group1Name: bestMatch.group1.groupName,
         group2Name: bestMatch.group2.groupName,
         group1Id: bestMatch.group1.id,
@@ -114,7 +116,43 @@ const handleMatchRequest = async (req, res) => {
         compatibility: bestMatch.compatibility,
         matchedAt: new Date().toISOString(),
         isBestMatch: true
-      });
+      };
+      
+      groupProfileStorage.saveMatch(matchRecord);
+    }
+    
+    // Send email notifications for best match if found
+    let emailStatus = null;
+    if (bestMatch) {
+      console.log('📧 [Matching] Sending match notification emails...');
+      const emailResult = await emailService.sendMatchNotification(
+        {
+          name: bestMatch.group1.groupName,
+          email: bestMatch.group1.email || bestMatch.group1.contactEmail || null,
+          memberEmails: bestMatch.group1.memberEmails || bestMatch.group1.emails || []
+        },
+        {
+          name: bestMatch.group2.groupName,
+          email: bestMatch.group2.email || bestMatch.group2.contactEmail || null,
+          memberEmails: bestMatch.group2.memberEmails || bestMatch.group2.emails || []
+        },
+        {
+          compatibility: bestMatch.compatibility
+        }
+      );
+      
+      emailStatus = {
+        sent: emailResult.success,
+        emails: emailResult.emails,
+        shareLink: emailResult.shareLink,
+        chatId: emailResult.chatId
+      };
+      
+      if (emailResult.success) {
+        console.log('✅ [Matching] Match notification emails sent successfully');
+      } else {
+        console.warn('⚠️  [Matching] Some emails failed to send:', emailResult.emails);
+      }
     }
     
     // Find top matches for each group
@@ -172,7 +210,8 @@ const handleMatchRequest = async (req, res) => {
         compatibility: m.compatibility?.percentage || 0,
         matchedAt: m.matchedAt,
         isBestMatch: m.isBestMatch || false
-      }))
+      })),
+      emailStatus: emailStatus
     });
     
   } catch (error) {
@@ -367,6 +406,104 @@ app.delete('/api/reset-all', (req, res) => {
     console.error('❌ Error resetting all states:', error);
     res.status(500).json({
       error: 'Failed to reset all states',
+      message: error.message
+    });
+  }
+});
+
+// Receive group data from main A1Zap server
+app.post('/api/groups/receive', async (req, res) => {
+  try {
+    console.log('📥 [Groups] Received group data from main server');
+    console.log('   Data:', JSON.stringify(req.body, null, 2));
+    
+    const groupProfileStorage = require('./services/group-profile-storage');
+    const groupData = req.body;
+    
+    // Validate required fields
+    if (!groupData.name && !groupData.groupName) {
+      return res.status(400).json({
+        error: 'Missing required field',
+        message: 'Group must have a "name" or "groupName" field'
+      });
+    }
+    
+    // Transform incoming data to expected format
+    // Handle different possible field names from the main server
+    const transformedGroup = {
+      groupName: groupData.name || groupData.groupName || groupData.group_name,
+      email: groupData.email || groupData.contactEmail || groupData.contact_email,
+      // Store member emails for group chat creation
+      memberEmails: groupData.memberEmails || groupData.member_emails || groupData.emails || groupData.members || [],
+      // Map answers - handle different formats
+      answers: {
+        question1: groupData.name || groupData.groupName || groupData.group_name,
+        question2: groupData.size || groupData.groupSize || groupData.group_size || groupData.answers?.question2,
+        question3: groupData.idealDay || groupData.ideal_day || groupData.lookingFor || groupData.looking_for || groupData.answers?.question3,
+        question4: groupData.fictionReference || groupData.fiction_reference || groupData.answers?.question4,
+        question5: groupData.musicTaste || groupData.music_taste || groupData.answers?.question5,
+        question6: groupData.dislikedCelebrity || groupData.disliked_celebrity || groupData.answers?.question6,
+        question7: groupData.originStory || groupData.origin_story || groupData.answers?.question7,
+        question8: groupData.emoji || groupData.vibe || groupData.answers?.question8,
+        question9: groupData.romanEmpire || groupData.roman_empire || groupData.answers?.question9,
+        question10: groupData.sideQuest || groupData.side_quest || groupData.answers?.question10
+      },
+      // Store raw data for reference
+      rawData: groupData,
+      // Store vibes/preferences if provided
+      vibes: groupData.vibes || groupData.preferences || null,
+      lookingFor: groupData.lookingFor || groupData.looking_for || null,
+      // Store any additional metadata
+      metadata: groupData.metadata || {},
+      // Store chatId if provided (for linking to chat)
+      chatId: groupData.chatId || groupData.chat_id || null
+    };
+    
+    // Check if group already exists
+    const existingProfile = groupProfileStorage.getProfileByGroupName(transformedGroup.groupName);
+    
+    if (existingProfile) {
+      // Update existing profile
+      console.log(`🔄 [Groups] Updating existing group: ${transformedGroup.groupName}`);
+      const updated = groupProfileStorage.updateGroupProfile(transformedGroup.groupName, transformedGroup);
+      
+      if (updated) {
+        return res.json({
+          success: true,
+          message: 'Group updated successfully',
+          group: {
+            name: updated.groupName,
+            id: updated.id,
+            email: updated.email,
+            updated: true
+          }
+        });
+      } else {
+        return res.status(500).json({
+          error: 'Failed to update group',
+          message: 'Group found but update failed'
+        });
+      }
+    } else {
+      // Create new profile
+      console.log(`✨ [Groups] Creating new group: ${transformedGroup.groupName}`);
+      const saved = groupProfileStorage.saveGroupProfile(transformedGroup);
+      
+      return res.json({
+        success: true,
+        message: 'Group received and saved successfully',
+        group: {
+          name: saved.groupName,
+          id: saved.id,
+          email: saved.email,
+          created: true
+        }
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error receiving group data:', error);
+    res.status(500).json({
+      error: 'Failed to process group data',
       message: error.message
     });
   }

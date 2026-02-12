@@ -190,6 +190,34 @@ function getProfileByChatId(chatId) {
 }
 
 /**
+ * Update an existing group profile
+ * @param {string} groupName - Group name to update
+ * @param {Object} updates - Fields to update
+ * @returns {Object|null} Updated profile or null if not found
+ */
+function updateGroupProfile(groupName, updates) {
+  const profiles = loadProfiles();
+  const groupIndex = profiles.groups.findIndex(g => 
+    g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
+  );
+  
+  if (groupIndex === -1) {
+    return null;
+  }
+  
+  // Update the profile
+  profiles.groups[groupIndex] = {
+    ...profiles.groups[groupIndex],
+    ...updates,
+    updatedAt: new Date().toISOString()
+  };
+  
+  saveProfiles(profiles);
+  console.log(`✅ Updated group profile: ${groupName}`);
+  return profiles.groups[groupIndex];
+}
+
+/**
  * Update an existing profile
  * @param {string} chatId - Chat ID
  * @param {Object} updates - Fields to update
@@ -422,6 +450,7 @@ function getCurrentQuestionResponses(chatId) {
 }
 
 module.exports = {
+  updateGroupProfile,
   getInterviewState,
   setInterviewState,
   clearInterviewState,
