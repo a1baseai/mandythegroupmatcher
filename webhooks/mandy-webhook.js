@@ -31,6 +31,74 @@ class MandyWebhook extends BaseWebhook {
   }
   
   /**
+   * Override handle to check if Mandy will respond before showing typing indicator
+   * @override
+   */
+  async handle(req, res) {
+    try {
+      // Check for chat.started event first
+      const { event } = req.body;
+      if (event === 'chat.started') {
+        return this.handleChatStarted(req, res);
+      }
+
+      // Extract webhook data
+      const data = this.extractWebhookData(req.body);
+      if (!data.valid) {
+        return res.status(400).json({
+          success: false,
+          error: data.error
+        });
+      }
+
+      // Check for duplicate message
+      if (webhookHelpers.isDuplicateMessage(data.messageId)) {
+        console.log(`⚠️  [Mandy] Duplicate message detected: ${data.messageId} - skipping processing`);
+        return res.json({
+          success: true,
+          skipped: true,
+          reason: 'duplicate_message',
+          messageId: data.messageId
+        });
+      }
+
+      // Quick check: Does the message mention Mandy?
+      // This prevents showing typing indicator when Mandy won't respond
+      const userMessage = data.userMessage || '';
+      const userMsgLower = userMessage.toLowerCase();
+      const mentionsMandy = userMsgLower.includes('mandy');
+      
+      // Also check if it's the first message (needs mini app sharing)
+      const interviewState = groupProfileStorage.getInterviewState(data.chatId);
+      const miniAppsShared = interviewState?.miniAppsShared || false;
+      const isFirstMessage = !miniAppsShared;
+
+      // If Mandy won't respond, return early without processing flag
+      // This prevents A1Zap from showing typing indicator
+      if (!mentionsMandy && !isFirstMessage) {
+        console.log(`✅ [Mandy] Message doesn't mention Mandy and no action needed - skipping (no typing indicator)`);
+        // Mark as processed to prevent duplicate processing
+        webhookHelpers.markMessageProcessed(data.messageId);
+        return res.json({
+          success: true,
+          agent: this.agent.name,
+          processing: false,  // This tells A1Zap not to show typing
+          skipped: true,
+          reason: 'name_not_mentioned',
+          messageId: data.messageId
+        });
+      }
+
+      // Mandy will respond - proceed with normal handling
+      return super.handle(req, res);
+    } catch (error) {
+      console.error(`❌ [Mandy] Error in handle override:`, error);
+      // Fall back to parent handle method
+      return super.handle(req, res);
+    }
+  }
+
+  /**
    * Override handleChatStarted to send our welcome message as the opening message
    * @override
    */

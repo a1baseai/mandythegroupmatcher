@@ -127,9 +127,9 @@ REMEMBER:
   getWelcomeMessage(userName, isAnonymous) {
     // Fun, icebreaking welcome message for pre-matched groups
     const messages = [
-      `Hey everyone! 👋 I'm Mandy - your friendly icebreaker! So you've all been matched... no pressure, just be yourselves and let's have some fun! 😄\n\n💡 I only respond when you say my name (like "Hey Mandy" or "Mandy, what's...") - this way I won't interrupt your conversations! Just mention me when you want a game, need help brainstorming what to do together, have a question, or need to break the ice. 🎮`,
-      `What's up, crew! 👋 Mandy here - I'm here to break the ice and make this less awkward! 😂 You've all been matched, so let's get comfortable and have some fun!\n\n💡 I only respond when you say my name (like "Hey Mandy") - mention me if you want a game, need help planning activities (like finding restaurants, mini golf, escape rooms, etc.), have questions, or need some icebreaking help! Otherwise I'll let you chat! 🎮`,
-      `Hey! 👋 Mandy here! So... you're all here because we matched you. Awkward? Maybe. Fun? Definitely! 😄 Let's break the ice and get this party started!\n\n💡 I only respond when you say my name - mention me if you want a game, need help brainstorming what to do together, have questions, or need to break the ice! 🎮`
+      `Hey everyone! 👋 I'm Mandy - your friendly icebreaker! You've all been matched, so let's have some fun! 😄\n\n💡 I only respond when you say my name (like "Hey Mandy") - mention me for games, help planning activities, questions, or to break the ice! 🎮`,
+      `What's up, crew! 👋 Mandy here - ready to break the ice and make this less awkward! 😂\n\n💡 I only respond when you say my name - mention me for games, activity planning (restaurants, mini golf, escape rooms, etc.), or any questions! 🎮`,
+      `Hey! 👋 Mandy here! You've all been matched - awkward? Maybe. Fun? Definitely! 😄\n\n💡 I only respond when you say my name - mention me for games, help brainstorming activities, questions, or to break the ice! 🎮`
     ];
     return messages[Math.floor(Math.random() * messages.length)];
   }
