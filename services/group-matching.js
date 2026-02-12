@@ -109,8 +109,8 @@ function calculateQuantitativeScore(group1, group2) {
 
   // Factor 2: Music Taste Similarity (25% weight)
   // Groups with similar music taste often have compatible vibes
-  const music1 = (getAnswer(group1, 5) || '').toLowerCase().trim();
-  const music2 = (getAnswer(group2, 5) || '').toLowerCase().trim();
+  const music1 = String(getAnswer(group1, 5) || '').toLowerCase().trim();
+  const music2 = String(getAnswer(group2, 5) || '').toLowerCase().trim();
   
   if (music1 && music2) {
     let musicScore = 0;
@@ -153,8 +153,8 @@ function calculateQuantitativeScore(group1, group2) {
 
   // Factor 3: Activity/Interest Similarity (25% weight)
   // Based on "ideal day" - groups with similar ideal days often get along
-  const idealDay1 = (getAnswer(group1, 3) || '').toLowerCase();
-  const idealDay2 = (getAnswer(group2, 3) || '').toLowerCase();
+  const idealDay1 = String(getAnswer(group1, 3) || '').toLowerCase();
+  const idealDay2 = String(getAnswer(group2, 3) || '').toLowerCase();
   
   if (idealDay1 && idealDay2) {
     let activityScore = 0;
@@ -198,8 +198,8 @@ function calculateQuantitativeScore(group1, group2) {
   }
 
   // Factor 4: Emoji/Vibe Similarity (10% weight - lower priority)
-  const emoji1 = (getAnswer(group1, 8) || '').toLowerCase().trim();
-  const emoji2 = (getAnswer(group2, 8) || '').toLowerCase().trim();
+  const emoji1 = String(getAnswer(group1, 8) || '').toLowerCase().trim();
+  const emoji2 = String(getAnswer(group2, 8) || '').toLowerCase().trim();
   
   if (emoji1 && emoji2) {
     const emojiScore = emoji1 === emoji2 ? 0.8 : 0.3;
