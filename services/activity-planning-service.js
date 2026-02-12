@@ -2,20 +2,20 @@
  * Activity Planning Service
  * Helps groups find local activities like restaurants, mini golf, escape rooms, etc.
  * 
- * NOTE: For production, consider integrating:
- * - Google Places API (https://developers.google.com/maps/documentation/places/web-service)
- * - Yelp Fusion API (https://www.yelp.com/developers/documentation/v3)
- * - Foursquare Places API (https://developer.foursquare.com/docs/places-api)
- * 
- * These APIs provide real-time data, ratings, reviews, and accurate locations.
+ * Integrates with Yelp Fusion API for real-time business data, ratings, and reviews.
  */
 
 const axios = require('axios');
+const yelpService = require('./yelp-service');
 
 class ActivityPlanningService {
   constructor() {
-    // You can add API keys here for services like Google Places, Yelp, etc.
-    // For now, we'll use web search for real results
+    this.useYelp = yelpService.isConfigured();
+    if (this.useYelp) {
+      console.log('✅ [ActivityPlanning] Yelp API configured - using Yelp for business searches');
+    } else {
+      console.log('⚠️  [ActivityPlanning] Yelp API not configured - using fallback methods');
+    }
   }
 
   /**
@@ -70,7 +70,7 @@ class ActivityPlanningService {
   }
 
   /**
-   * Search for local activities using web search
+   * Search for local activities using Yelp API or fallback methods
    * @param {string} query - What they're looking for (e.g., "italian restaurant", "mini golf", "escape room")
    * @param {string} location - Location (city, area, etc.) - optional
    * @param {Function} webSearchFn - Web search function (injected for testing)
@@ -85,31 +85,57 @@ class ActivityPlanningService {
 
       console.log(`🔍 [ActivityPlanning] Searching for: "${searchQuery}"`);
 
-      // Use web search to get real results
-      let searchResults = null;
-      if (webSearchFn) {
-        // Use provided search function (for testing or if web_search tool is available)
-        searchResults = await webSearchFn(searchQuery);
+      let recommendations = [];
+      let yelpUrl = '';
+      let mapsUrl = '';
+
+      // Try Yelp API first if configured
+      if (this.useYelp && location) {
+        try {
+          const yelpResults = await yelpService.searchBusinesses(query, location, {
+            limit: 5,
+            sortBy: 'rating'
+          });
+
+          if (yelpResults.success && yelpResults.businesses.length > 0) {
+            recommendations = yelpService.formatBusinesses(yelpResults.businesses).map(business => ({
+              name: business.name,
+              description: `${business.rating}⭐ (${business.reviewCount} reviews) • ${business.price} • ${business.categories || 'Restaurant'}`,
+              address: business.address,
+              rating: business.rating,
+              reviewCount: business.reviewCount,
+              price: business.price,
+              url: business.url,
+              imageUrl: business.imageUrl,
+              distance: business.distance,
+              phone: business.phone
+            }));
+
+            console.log(`✅ [ActivityPlanning] Found ${recommendations.length} businesses via Yelp API`);
+          }
+        } catch (yelpError) {
+          console.warn(`⚠️  [ActivityPlanning] Yelp API error, using fallback:`, yelpError.message);
+          // Fall through to fallback methods
+        }
       }
 
-      // Parse search results to extract restaurant/activity names and info
-      const recommendations = this.parseSearchResults(searchResults, query, location);
+      // Fallback to web search if Yelp didn't work or isn't configured
+      if (recommendations.length === 0) {
+        let searchResults = null;
+        if (webSearchFn) {
+          searchResults = await webSearchFn(searchQuery);
+        }
+        recommendations = this.parseSearchResults(searchResults, query, location);
+      }
 
       // Build Google Maps search URL
       const mapsQuery = location 
         ? `${query} near ${location}`
         : query;
-      const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(mapsQuery)}`;
+      mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(mapsQuery)}`;
 
-      // Build Yelp search URL (if it's a restaurant)
-      let yelpUrl = '';
-      const isRestaurant = query.toLowerCase().includes('restaurant') || 
-                          query.toLowerCase().includes('food') ||
-                          query.toLowerCase().includes('dinner') ||
-                          query.toLowerCase().includes('lunch') ||
-                          query.toLowerCase().includes('eat');
-      
-      if (isRestaurant && location) {
+      // Build Yelp search URL
+      if (location) {
         yelpUrl = `https://www.yelp.com/search?find_desc=${encodeURIComponent(query)}&find_loc=${encodeURIComponent(location)}`;
       }
 
@@ -120,7 +146,8 @@ class ActivityPlanningService {
         recommendations: recommendations,
         mapsUrl: mapsUrl,
         yelpUrl: yelpUrl,
-        helpfulLinks: this.getHelpfulLinksForActivityType(query)
+        helpfulLinks: this.getHelpfulLinksForActivityType(query),
+        source: this.useYelp && recommendations.length > 0 ? 'yelp' : 'web'
       };
     } catch (error) {
       console.error('❌ [ActivityPlanning] Error searching activities:', error);
@@ -240,12 +267,40 @@ class ActivityPlanningService {
     
     // Add specific recommendations if available
     if (searchResult.recommendations && searchResult.recommendations.length > 0) {
-      searchResult.recommendations.slice(0, 3).forEach((rec, index) => {
-        if (rec.name && rec.description) {
-          message += `${index + 1}. **${rec.name}**\n`;
-          if (rec.description) {
-            message += `   ${rec.description.substring(0, 100)}${rec.description.length > 100 ? '...' : ''}\n`;
+      searchResult.recommendations.slice(0, 5).forEach((rec, index) => {
+        if (rec.name) {
+          message += `${index + 1}. **${rec.name}**`;
+          
+          // Add rating if available (from Yelp)
+          if (rec.rating) {
+            message += ` ⭐ ${rec.rating}`;
+            if (rec.reviewCount) {
+              message += ` (${rec.reviewCount} reviews)`;
+            }
           }
+          
+          message += `\n`;
+          
+          // Add description or details
+          if (rec.description) {
+            message += `   ${rec.description}\n`;
+          }
+          
+          // Add address if available
+          if (rec.address) {
+            message += `   📍 ${rec.address}\n`;
+          }
+          
+          // Add distance if available
+          if (rec.distance) {
+            message += `   📏 ${rec.distance} away\n`;
+          }
+          
+          // Add Yelp link if available
+          if (rec.url) {
+            message += `   🔗 [View on Yelp](${rec.url})\n`;
+          }
+          
           message += `\n`;
         }
       });
@@ -255,7 +310,7 @@ class ActivityPlanningService {
     message += `🔗 Quick links:\n`;
     message += `• [Google Maps](${searchResult.mapsUrl}) - See all options with reviews and directions\n`;
     if (searchResult.yelpUrl) {
-      message += `• [Yelp](${searchResult.yelpUrl}) - Find restaurants with ratings\n`;
+      message += `• [Yelp](${searchResult.yelpUrl}) - Find more options with ratings\n`;
     }
     
     if (searchResult.helpfulLinks.length > 0) {

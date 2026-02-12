@@ -19,6 +19,11 @@ module.exports = {
     betaHeaders: ['files-api-2025-04-14']
   },
 
+  // Yelp API configuration for activity planning
+  yelp: {
+    apiKey: process.env.YELP_API_KEY || 'your_yelp_api_key_here'
+  },
+
   // Mandy agent configuration (legacy compatibility)
   mandy: {
     apiKey: process.env.A1ZAP_API_KEY || 'your_a1zap_api_key_here',
