@@ -450,8 +450,8 @@ app.post('/api/groups/receive', async (req, res) => {
       },
       // Store raw data for reference
       rawData: groupData,
-      // Store vibes/preferences if provided
-      vibes: groupData.vibes || groupData.preferences || null,
+      // Store vibes/preferences if provided (accept multiple field names)
+      vibes: groupData.vibes || groupData.vibeTags || groupData.preferences || null,
       lookingFor: groupData.lookingFor || groupData.looking_for || null,
       // Store any additional metadata
       metadata: groupData.metadata || {},
