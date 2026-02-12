@@ -459,13 +459,23 @@ app.post('/api/groups/receive', async (req, res) => {
       chatId: groupData.chatId || groupData.chat_id || null
     };
     
-    // Check if group already exists
-    const existingProfile = groupProfileStorage.getProfileByGroupName(transformedGroup.groupName);
+    // Check if group already exists (using composite key: name + email or chatId)
+    // This prevents groups with the same name but different emails from overwriting each other
+    const existingProfile = groupProfileStorage.getProfileByCompositeKey(
+      transformedGroup.groupName,
+      transformedGroup.email,
+      transformedGroup.chatId
+    );
     
     if (existingProfile) {
       // Update existing profile
-      console.log(`🔄 [Groups] Updating existing group: ${transformedGroup.groupName}`);
-      const updated = groupProfileStorage.updateGroupProfile(transformedGroup.groupName, transformedGroup);
+      console.log(`🔄 [Groups] Updating existing group: ${transformedGroup.groupName}${transformedGroup.email ? ` (${transformedGroup.email})` : ''}`);
+      const updated = groupProfileStorage.updateGroupProfile(
+        transformedGroup.groupName,
+        transformedGroup,
+        transformedGroup.email,
+        transformedGroup.chatId
+      );
       
       if (updated) {
         return res.json({
@@ -486,7 +496,7 @@ app.post('/api/groups/receive', async (req, res) => {
       }
     } else {
       // Create new profile
-      console.log(`✨ [Groups] Creating new group: ${transformedGroup.groupName}`);
+      console.log(`✨ [Groups] Creating new group: ${transformedGroup.groupName}${transformedGroup.email ? ` (${transformedGroup.email})` : ''}`);
       const saved = groupProfileStorage.saveGroupProfile(transformedGroup);
       
       return res.json({
