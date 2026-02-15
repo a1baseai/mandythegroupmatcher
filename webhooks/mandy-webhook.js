@@ -656,7 +656,7 @@ class MandyWebhook extends BaseWebhook {
               contextMessage += `⚠️ IMPORTANT: The user hasn't specified their location yet. Politely ask for their city/area so you can give accurate recommendations. Say something like "What city are you in? I want to find you the best spots nearby!" but keep it funny.\n\n`;
             }
             contextMessage += `${activityPlanningService.formatActivityRecommendations(searchResult)}\n\n`;
-            contextMessage += `Use this information to help the group find ${activityQuery}${location ? ` in ${location}` : ''}. Be specific with the recommendations, include the names and details from the search results. Keep your response funny and engaging!`;
+            contextMessage += `Use this information to help the group find ${activityQuery}${location ? ` in ${location}` : ''}. Be specific with the recommendations, include the names and details from the search results. CRITICAL: When you mention any restaurant or business name from the list above, you MUST copy the exact markdown link format: [**Name**](Yelp URL). Do NOT just write the name - you MUST include the link in markdown format so users can click it. Example: If you see "[**Restaurant Name**](https://yelp.com/...)", you must include that exact format in your response. Keep your response funny and engaging!`;
             
             activityContext = contextMessage;
             console.log(`✅ [Mandy] Activity planning info retrieved for: ${activityQuery}${location ? ` in ${location}` : ''}`);

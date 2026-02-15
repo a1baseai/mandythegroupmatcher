@@ -269,9 +269,9 @@ class ActivityPlanningService {
     if (searchResult.recommendations && searchResult.recommendations.length > 0) {
       searchResult.recommendations.slice(0, 5).forEach((rec, index) => {
         if (rec.name) {
-          // Make the name a clickable Yelp link
-          const nameLink = rec.url ? `[${rec.name}](${rec.url})` : rec.name;
-          message += `${index + 1}. **${nameLink}**`;
+          // Make the name a clickable Yelp link (bold the link text)
+          const nameLink = rec.url ? `[**${rec.name}**](${rec.url})` : `**${rec.name}**`;
+          message += `${index + 1}. ${nameLink}`;
           
           // Add rating if available (from Yelp)
           if (rec.rating) {
