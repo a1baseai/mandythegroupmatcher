@@ -100,7 +100,7 @@ class ActivityPlanningService {
           if (yelpResults.success && yelpResults.businesses.length > 0) {
             recommendations = yelpService.formatBusinesses(yelpResults.businesses).map(business => ({
               name: business.name,
-              description: `${business.rating}⭐ (${business.reviewCount} reviews) • ${business.price} • ${business.categories || 'Restaurant'}`,
+              description: business.categories || 'Restaurant',
               address: business.address,
               rating: business.rating,
               reviewCount: business.reviewCount,
@@ -263,42 +263,38 @@ class ActivityPlanningService {
       return `Hmm, having trouble finding that right now! 😅 Try searching on Google Maps or Yelp - they're usually pretty good at finding local spots!`;
     }
 
-    let message = `Here are some great options for ${searchResult.query}${searchResult.location ? ` in ${searchResult.location}` : ''}:\n\n`;
+    let message = `Here are some great options${searchResult.location ? ` in ${searchResult.location}` : ''}:\n\n`;
     
     // Add specific recommendations if available
     if (searchResult.recommendations && searchResult.recommendations.length > 0) {
       searchResult.recommendations.slice(0, 5).forEach((rec, index) => {
         if (rec.name) {
-          message += `${index + 1}. **${rec.name}**`;
+          // Make the name a clickable Yelp link
+          const nameLink = rec.url ? `[${rec.name}](${rec.url})` : rec.name;
+          message += `${index + 1}. **${nameLink}**`;
           
           // Add rating if available (from Yelp)
           if (rec.rating) {
-            message += ` ⭐ ${rec.rating}`;
+            message += ` ⭐ ${rec.rating.toFixed(1)}`;
             if (rec.reviewCount) {
-              message += ` (${rec.reviewCount} reviews)`;
+              message += ` (${rec.reviewCount.toLocaleString()})`;
             }
           }
           
-          message += `\n`;
-          
-          // Add description or details
-          if (rec.description) {
-            message += `   ${rec.description}\n`;
+          // Add price if available
+          if (rec.price && rec.price !== 'N/A') {
+            message += ` • ${rec.price}`;
           }
           
-          // Add address if available
-          if (rec.address) {
-            message += `   📍 ${rec.address}\n`;
-          }
-          
-          // Add distance if available
-          if (rec.distance) {
-            message += `   📏 ${rec.distance} away\n`;
-          }
-          
-          // Add Yelp link if available
-          if (rec.url) {
-            message += `   🔗 [View on Yelp](${rec.url})\n`;
+          // Add address and distance on same line if available
+          if (rec.address || rec.distance) {
+            message += `\n   📍 `;
+            if (rec.address) {
+              message += rec.address;
+            }
+            if (rec.distance) {
+              message += rec.address ? ` • ${rec.distance}` : rec.distance;
+            }
           }
           
           message += `\n`;
@@ -306,17 +302,15 @@ class ActivityPlanningService {
       });
     }
 
-    // Add search links
-    message += `🔗 Quick links:\n`;
-    message += `• [Google Maps](${searchResult.mapsUrl}) - See all options with reviews and directions\n`;
-    if (searchResult.yelpUrl) {
-      message += `• [Yelp](${searchResult.yelpUrl}) - Find more options with ratings\n`;
-    }
-    
-    if (searchResult.helpfulLinks.length > 0) {
-      searchResult.helpfulLinks.forEach(link => {
-        message += `• [${link.name}](${link.url}) - ${link.description}\n`;
-      });
+    // Add quick search links (much shorter)
+    if (searchResult.mapsUrl || searchResult.yelpUrl) {
+      message += `\nMore: `;
+      if (searchResult.mapsUrl) {
+        message += `[Maps](${searchResult.mapsUrl})`;
+      }
+      if (searchResult.yelpUrl) {
+        message += searchResult.mapsUrl ? ` • [Yelp](${searchResult.yelpUrl})` : `[Yelp](${searchResult.yelpUrl})`;
+      }
     }
 
     return message;
