@@ -108,9 +108,12 @@ const handleMatchRequest = async (req, res) => {
     const bestMatch = await groupMatching.findBestMatch();
     
     if (bestMatch) {
+      const group1Name = bestMatch.group1.groupName || bestMatch.group1.name || bestMatch.group1.group_name || bestMatch.group1.answers?.question1 || bestMatch.group1.answers?.q1 || 'Unknown Group 1';
+      const group2Name = bestMatch.group2.groupName || bestMatch.group2.name || bestMatch.group2.group_name || bestMatch.group2.answers?.question1 || bestMatch.group2.answers?.q1 || 'Unknown Group 2';
+
       const matchRecord = {
-        group1Name: bestMatch.group1.groupName,
-        group2Name: bestMatch.group2.groupName,
+        group1Name: group1Name,
+        group2Name: group2Name,
         group1Id: bestMatch.group1.id,
         group2Id: bestMatch.group2.id,
         compatibility: bestMatch.compatibility,
@@ -127,12 +130,12 @@ const handleMatchRequest = async (req, res) => {
       console.log('📧 [Matching] Sending match notification emails...');
       const emailResult = await emailService.sendMatchNotification(
         {
-          name: bestMatch.group1.groupName,
+          name: bestMatch.group1.groupName || bestMatch.group1.name || bestMatch.group1.group_name || bestMatch.group1.answers?.question1 || bestMatch.group1.answers?.q1 || 'Unknown Group 1',
           email: bestMatch.group1.email || bestMatch.group1.contactEmail || null,
           memberEmails: bestMatch.group1.memberEmails || bestMatch.group1.emails || []
         },
         {
-          name: bestMatch.group2.groupName,
+          name: bestMatch.group2.groupName || bestMatch.group2.name || bestMatch.group2.group_name || bestMatch.group2.answers?.question1 || bestMatch.group2.answers?.q1 || 'Unknown Group 2',
           email: bestMatch.group2.email || bestMatch.group2.contactEmail || null,
           memberEmails: bestMatch.group2.memberEmails || bestMatch.group2.emails || []
         },
@@ -160,8 +163,14 @@ const handleMatchRequest = async (req, res) => {
     let totalMatchesSaved = 0;
     
     for (const group of allProfiles) {
-      const matches = await groupMatching.findMatchesForGroup(group.groupName, 3);
-      matchesByGroup[group.groupName] = matches.map(m => ({
+      const groupName = group.groupName || group.name || group.group_name || group.answers?.question1 || group.answers?.q1;
+      if (!groupName) {
+        console.warn('⚠️  [Matching] Skipping group with no groupName:', group?.id || group);
+        continue;
+      }
+
+      const matches = await groupMatching.findMatchesForGroup(groupName, 3);
+      matchesByGroup[groupName] = matches.map(m => ({
         groupName: m.group.groupName,
         compatibility: m.compatibility.percentage,
         breakdown: m.compatibility

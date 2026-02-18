@@ -33,6 +33,21 @@
 const claudeService = require('./claude-service');
 const groupProfileStorage = require('./group-profile-storage');
 
+function safeLower(value) {
+  return String(value ?? '').toLowerCase();
+}
+
+function getGroupDisplayName(group) {
+  if (!group || typeof group !== 'object') return 'Unknown';
+  return (
+    group.groupName ||
+    group.name ||
+    group.group_name ||
+    (group.answers && (group.answers.question1 || group.answers.q1)) ||
+    'Unknown'
+  );
+}
+
 /**
  * Helper to get answer value (handles both old and new format)
  */
@@ -257,7 +272,7 @@ CRITICAL PRIORITIES (in order):
 5. Complementary Personalities - Groups that would balance each other well
 
 Group 1:
-- Name: ${group1.groupName}
+- Name: ${getGroupDisplayName(group1)}
 - Group Size: ${size1} ${size1 === 1 ? 'person' : 'people'}
 - Ideal Day: ${getAnswer(group1, 3) || 'N/A'}
 - Fiction Group: ${getAnswer(group1, 4) || 'N/A'}
@@ -269,7 +284,7 @@ Group 1:
 - Side Quest: ${getAnswer(group1, 10) || 'N/A'}
 
 Group 2:
-- Name: ${group2.groupName}
+- Name: ${getGroupDisplayName(group2)}
 - Group Size: ${size2} ${size2 === 1 ? 'person' : 'people'}
 - Ideal Day: ${getAnswer(group2, 3) || 'N/A'}
 - Fiction Group: ${getAnswer(group2, 4) || 'N/A'}
@@ -378,7 +393,7 @@ async function findMatchesForGroup(groupName, limit = 5) {
 
   for (const group of allProfiles) {
     // Skip self
-    if (group.groupName.toLowerCase() === groupName.toLowerCase()) {
+    if (safeLower(getGroupDisplayName(group)) === safeLower(groupName)) {
       continue;
     }
 

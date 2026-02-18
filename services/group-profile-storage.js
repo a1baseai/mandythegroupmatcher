@@ -15,6 +15,25 @@ const PROFILES_FILE = path.join(DATA_DIR, 'group-profiles.json');
 const STATE_FILE = path.join(DATA_DIR, 'interview-state.json');
 const MATCHES_FILE = path.join(DATA_DIR, 'matches.json');
 
+function safeLower(value) {
+  return String(value ?? '').toLowerCase();
+}
+
+function normalizeGroupName(profile) {
+  if (!profile || typeof profile !== 'object') return profile;
+  const groupName =
+    profile.groupName ||
+    profile.name ||
+    profile.group_name ||
+    profile.answers?.question1 ||
+    profile.answers?.q1;
+
+  if (groupName && !profile.groupName) {
+    return { ...profile, groupName };
+  }
+  return profile;
+}
+
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -130,8 +149,9 @@ function clearInterviewState(chatId) {
  */
 function groupNameExists(groupName) {
   const profiles = loadProfiles();
+  if (!groupName) return false;
   return profiles.groups.some(g => 
-    g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
+    g.groupName && safeLower(g.groupName) === safeLower(groupName)
   );
 }
 
@@ -164,7 +184,7 @@ function saveGroupProfile(profile) {
  */
 function getAllProfiles() {
   const profiles = loadProfiles();
-  return profiles.groups || [];
+  return (profiles.groups || []).map(normalizeGroupName);
 }
 
 /**
@@ -174,8 +194,9 @@ function getAllProfiles() {
  */
 function getProfileByGroupName(groupName) {
   const profiles = loadProfiles();
+  if (!groupName) return null;
   return profiles.groups.find(g => 
-    g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
+    g.groupName && safeLower(g.groupName) === safeLower(groupName)
   ) || null;
 }
 
@@ -199,6 +220,7 @@ function getProfileByChatId(chatId) {
  */
 function getProfileByCompositeKey(groupName, email = null, chatId = null) {
   const profiles = loadProfiles();
+  if (!groupName && !chatId) return null;
   
   // If chatId is provided, use it as primary identifier
   if (chatId) {
@@ -209,15 +231,15 @@ function getProfileByCompositeKey(groupName, email = null, chatId = null) {
   // Otherwise, match by name + email
   if (email) {
     const byNameAndEmail = profiles.groups.find(g => 
-      g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase() &&
-      g.email && g.email.toLowerCase() === email.toLowerCase()
+      g.groupName && safeLower(g.groupName) === safeLower(groupName) &&
+      g.email && safeLower(g.email) === safeLower(email)
     );
     if (byNameAndEmail) return byNameAndEmail;
   }
   
   // Fallback to name only (for backward compatibility)
   return profiles.groups.find(g => 
-    g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
+    g.groupName && safeLower(g.groupName) === safeLower(groupName)
   ) || null;
 }
 
@@ -231,6 +253,7 @@ function getProfileByCompositeKey(groupName, email = null, chatId = null) {
  */
 function updateGroupProfile(groupName, updates, email = null, chatId = null) {
   const profiles = loadProfiles();
+  if (!groupName && !chatId) return null;
   
   let groupIndex = -1;
   
@@ -242,15 +265,15 @@ function updateGroupProfile(groupName, updates, email = null, chatId = null) {
   // Otherwise, match by name + email
   if (groupIndex === -1 && email) {
     groupIndex = profiles.groups.findIndex(g => 
-      g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase() &&
-      g.email && g.email.toLowerCase() === email.toLowerCase()
+      g.groupName && safeLower(g.groupName) === safeLower(groupName) &&
+      g.email && safeLower(g.email) === safeLower(email)
     );
   }
   
   // Fallback to name only (for backward compatibility)
   if (groupIndex === -1) {
     groupIndex = profiles.groups.findIndex(g => 
-      g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
+      g.groupName && safeLower(g.groupName) === safeLower(groupName)
     );
   }
   
@@ -371,9 +394,10 @@ function getAllMatches() {
  */
 function getMatchesForGroup(groupName) {
   const allMatches = getAllMatches();
+  if (!groupName) return [];
   return allMatches.filter(m => 
-    m.group1Name.toLowerCase() === groupName.toLowerCase() ||
-    m.group2Name.toLowerCase() === groupName.toLowerCase()
+    safeLower(m.group1Name) === safeLower(groupName) ||
+    safeLower(m.group2Name) === safeLower(groupName)
   );
 }
 
