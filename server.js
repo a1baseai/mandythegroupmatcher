@@ -39,6 +39,66 @@ const AgentRegistry = require('./core/AgentRegistry');
 // Admin dashboard (simple Basic Auth)
 const ADMIN_USER = process.env.MANDY_ADMIN_USER || 'admin';
 const ADMIN_PASSWORD = process.env.MANDY_ADMIN_PASSWORD || 'a1zapped!';
+const IN_PROD = !!process.env.PORT || process.env.NODE_ENV === 'production';
+
+// Optional: protect inbound integration endpoints with a shared secret (recommended in prod)
+// - /api/groups/receive expects: Authorization: Bearer <token> OR X-Ingest-Token: <token>
+const INGEST_TOKEN = process.env.MANDY_INGEST_TOKEN || '';
+// - /webhook/mandy expects: X-Webhook-Secret: <secret>
+const WEBHOOK_SECRET = process.env.MANDY_WEBHOOK_SECRET || '';
+
+if (IN_PROD && ADMIN_USER === 'admin' && ADMIN_PASSWORD === 'a1zapped!') {
+  console.error('❌ Refusing to start in production with default admin credentials.');
+  console.error('   Set MANDY_ADMIN_USER and MANDY_ADMIN_PASSWORD.');
+  process.exit(1);
+}
+
+// Lightweight rate limiting for protected routes (best-effort; per-process memory)
+function rateLimit({ windowMs, max, keyFn }) {
+  const buckets = new Map(); // key -> { count, resetAt }
+  const window = Math.max(1000, windowMs || 60_000);
+  const limit = Math.max(1, max || 60);
+  const kfn = keyFn || ((req) => req.ip || 'unknown');
+
+  return (req, res, next) => {
+    const key = kfn(req);
+    const now = Date.now();
+    const b = buckets.get(key);
+    if (!b || now >= b.resetAt) {
+      buckets.set(key, { count: 1, resetAt: now + window });
+      return next();
+    }
+    b.count += 1;
+    if (b.count > limit) {
+      const retryAfter = Math.ceil((b.resetAt - now) / 1000);
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: 'Too many requests', retryAfterSeconds: retryAfter });
+    }
+    return next();
+  };
+}
+
+function requireIngestToken(req, res, next) {
+  if (!INGEST_TOKEN) return next(); // not enforced unless configured
+  const auth = req.headers.authorization || '';
+  const headerToken = req.headers['x-ingest-token'];
+  const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice('bearer '.length) : '';
+  const token = (typeof headerToken === 'string' ? headerToken : '') || bearer;
+
+  if (!token || token !== INGEST_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized', message: 'Missing/invalid ingest token' });
+  }
+  return next();
+}
+
+function requireWebhookSecret(req, res, next) {
+  if (!WEBHOOK_SECRET) return next(); // not enforced unless configured
+  const secret = req.headers['x-webhook-secret'];
+  if (typeof secret !== 'string' || secret !== WEBHOOK_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized', message: 'Missing/invalid webhook secret' });
+  }
+  return next();
+}
 
 function requireAdminAuth(req, res, next) {
   try {
@@ -478,7 +538,7 @@ app.get('/admin/api/stats', requireAdminAuth, (req, res) => {
 });
 
 // Mandy the Group Matchmaker webhook endpoint
-app.post('/webhook/mandy', mandyWebhookHandler);
+app.post('/webhook/mandy', requireWebhookSecret, mandyWebhookHandler);
 
 // Matching endpoint - run matching algorithm and save results (POST or GET)
 const handleMatchRequest = async (req, res) => {
@@ -635,11 +695,11 @@ const handleMatchRequest = async (req, res) => {
 };
 
 // Support both GET and POST for easy access (just click the URL in Railway!)
-app.get('/api/match', requireAdminAuth, handleMatchRequest);
-app.post('/api/match', requireAdminAuth, handleMatchRequest);
+app.get('/api/match', rateLimit({ windowMs: 60_000, max: 30 }), requireAdminAuth, handleMatchRequest);
+app.post('/api/match', rateLimit({ windowMs: 60_000, max: 30 }), requireAdminAuth, handleMatchRequest);
 
 // Get matches endpoint - retrieve saved matches
-app.get('/api/matches', requireAdminAuth, (req, res) => {
+app.get('/api/matches', rateLimit({ windowMs: 60_000, max: 120 }), requireAdminAuth, (req, res) => {
   try {
     const groupProfileStorage = require('./services/group-profile-storage');
     const allMatches = groupProfileStorage.getAllMatches();
@@ -668,7 +728,7 @@ app.get('/api/matches', requireAdminAuth, (req, res) => {
 });
 
 // Get groups endpoint - retrieve all group profiles
-app.get('/api/groups', requireAdminAuth, (req, res) => {
+app.get('/api/groups', rateLimit({ windowMs: 60_000, max: 120 }), requireAdminAuth, (req, res) => {
   try {
     const groupProfileStorage = require('./services/group-profile-storage');
     const allProfiles = groupProfileStorage.getAllProfiles();
@@ -695,7 +755,7 @@ app.get('/api/groups', requireAdminAuth, (req, res) => {
 });
 
 // Sync mini app data endpoint - manually trigger sync for a chat
-app.post('/api/sync-mini-app-data/:chatId', requireAdminAuth, async (req, res) => {
+app.post('/api/sync-mini-app-data/:chatId', rateLimit({ windowMs: 60_000, max: 60 }), requireAdminAuth, async (req, res) => {
   try {
     const { chatId } = req.params;
     const mandyWebhookModule = require('./webhooks/mandy-webhook');
@@ -735,7 +795,7 @@ app.post('/api/sync-mini-app-data/:chatId', requireAdminAuth, async (req, res) =
 });
 
 // Reset/clear interview state for a chat (for testing)
-app.delete('/api/reset/:chatId', requireAdminAuth, (req, res) => {
+app.delete('/api/reset/:chatId', rateLimit({ windowMs: 60_000, max: 60 }), requireAdminAuth, (req, res) => {
   try {
     const { chatId } = req.params;
     const groupProfileStorage = require('./services/group-profile-storage');
@@ -768,7 +828,7 @@ app.delete('/api/reset/:chatId', requireAdminAuth, (req, res) => {
 });
 
 // Get interview state for debugging
-app.get('/api/state/:chatId', requireAdminAuth, (req, res) => {
+app.get('/api/state/:chatId', rateLimit({ windowMs: 60_000, max: 120 }), requireAdminAuth, (req, res) => {
   try {
     const { chatId } = req.params;
     const groupProfileStorage = require('./services/group-profile-storage');
@@ -798,7 +858,7 @@ app.get('/api/state/:chatId', requireAdminAuth, (req, res) => {
 });
 
 // Clear ALL interview states (nuclear option for testing)
-app.delete('/api/reset-all', requireAdminAuth, (req, res) => {
+app.delete('/api/reset-all', rateLimit({ windowMs: 60_000, max: 30 }), requireAdminAuth, (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
@@ -822,7 +882,7 @@ app.delete('/api/reset-all', requireAdminAuth, (req, res) => {
 });
 
 // Receive group data from main A1Zap server
-app.post('/api/groups/receive', async (req, res) => {
+app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
   try {
     console.log('📥 [Groups] Received group data from main server');
     console.log('   Data:', JSON.stringify(req.body, null, 2));
@@ -930,7 +990,7 @@ app.post('/api/groups/receive', async (req, res) => {
 });
 
 // Poll and create profile from mini apps endpoint
-app.post('/api/poll-mini-apps/:chatId', requireAdminAuth, async (req, res) => {
+app.post('/api/poll-mini-apps/:chatId', rateLimit({ windowMs: 60_000, max: 60 }), requireAdminAuth, async (req, res) => {
   try {
     const { chatId } = req.params;
     const mandyWebhookModule = require('./webhooks/mandy-webhook');
