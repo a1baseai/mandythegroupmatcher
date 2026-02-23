@@ -4,17 +4,28 @@
  * Server for Mandy the Group Matchmaker agent only.
  */
 
-// Load environment variables from .env file
+// Load environment variables from .env file (only if present)
 try {
-  require('@dotenvx/dotenvx').config();
-} catch (error) {
-  // Fallback to dotenv if @dotenvx/dotenvx not available
-  try {
-    require('dotenv').config();
-  } catch (e) {
-    // If neither is available, environment variables must be set manually
-    console.warn('⚠️  No dotenv package found - using system environment variables only');
+  const fs = require('fs');
+  const path = require('path');
+  const envPath = path.join(__dirname, '.env');
+  const envLocalPath = path.join(__dirname, '.env.local');
+  const hasEnvFile = fs.existsSync(envPath) || fs.existsSync(envLocalPath);
+
+  if (hasEnvFile) {
+    try {
+      require('@dotenvx/dotenvx').config();
+    } catch (error) {
+      // Fallback to dotenv if @dotenvx/dotenvx not available
+      try {
+        require('dotenv').config();
+      } catch (e) {
+        console.warn('⚠️  No dotenv package found - using system environment variables only');
+      }
+    }
   }
+} catch (e) {
+  // Ignore env-file detection errors and rely on process.env
 }
 
 // Load configuration
@@ -24,6 +35,35 @@ const bodyParser = require('body-parser');
 
 // Core architecture
 const AgentRegistry = require('./core/AgentRegistry');
+
+// Admin dashboard (simple Basic Auth)
+const ADMIN_USER = process.env.MANDY_ADMIN_USER || 'admin';
+const ADMIN_PASSWORD = process.env.MANDY_ADMIN_PASSWORD || 'a1zapped!';
+
+function requireAdminAuth(req, res, next) {
+  try {
+    const auth = req.headers.authorization || '';
+    if (!auth.startsWith('Basic ')) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="Mandy Admin", charset="UTF-8"');
+      return res.status(401).send('Authentication required');
+    }
+
+    const encoded = auth.slice('Basic '.length);
+    const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+    const idx = decoded.indexOf(':');
+    const user = idx >= 0 ? decoded.slice(0, idx) : '';
+    const pass = idx >= 0 ? decoded.slice(idx + 1) : '';
+
+    if (user !== ADMIN_USER || pass !== ADMIN_PASSWORD) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="Mandy Admin", charset="UTF-8"');
+      return res.status(401).send('Invalid credentials');
+    }
+
+    return next();
+  } catch (e) {
+    return res.status(401).send('Authentication error');
+  }
+}
 
 // Mandy agent and webhook
 const mandyAgent = require('./agents/mandy-agent');
@@ -73,6 +113,367 @@ app.get('/', (req, res) => {
       reset: 'DELETE /api/reset/:chatId',
       resetAll: 'DELETE /api/reset-all'
     }
+  });
+});
+
+// Admin dashboard (Basic Auth)
+app.get('/admin', requireAdminAuth, (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mandy Admin Dashboard</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: rgba(255,255,255,.06);
+        --panel2: rgba(255,255,255,.10);
+        --text: rgba(255,255,255,.92);
+        --muted: rgba(255,255,255,.72);
+        --accent: #A51C30;
+        --good: #22c55e;
+        --bad: #ef4444;
+        --border: rgba(255,255,255,.14);
+        --shadow: 0 10px 30px rgba(0,0,0,.35);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: radial-gradient(1200px 600px at 20% 10%, rgba(165,28,48,.35), transparent 60%),
+                    radial-gradient(900px 500px at 85% 15%, rgba(56,189,248,.20), transparent 55%),
+                    var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+      }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 18px 60px; }
+      header { display: flex; gap: 14px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+      h1 { margin: 0; font-size: 22px; letter-spacing: .2px; }
+      .sub { color: var(--muted); font-size: 13px; }
+      .grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 16px; }
+      @media (min-width: 980px) { .grid { grid-template-columns: 1.05fr .95fr; } }
+      .card {
+        background: linear-gradient(180deg, var(--panel), rgba(255,255,255,.035));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .card h2 {
+        margin: 0;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
+        letter-spacing: .2px;
+        color: rgba(255,255,255,.88);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .content { padding: 14px; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+      button, .btnlink {
+        appearance: none;
+        border: 1px solid rgba(255,255,255,.18);
+        background: rgba(255,255,255,.08);
+        color: var(--text);
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: transform .05s ease, background .15s ease, border-color .15s ease;
+        text-decoration: none;
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+      }
+      button:hover, .btnlink:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.26); }
+      button:active, .btnlink:active { transform: translateY(1px); }
+      button.primary { background: rgba(165,28,48,.28); border-color: rgba(165,28,48,.55); }
+      button.primary:hover { background: rgba(165,28,48,.34); }
+      button.danger { background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.40); }
+      input {
+        border: 1px solid rgba(255,255,255,.18);
+        background: rgba(0,0,0,.25);
+        color: var(--text);
+        padding: 10px 11px;
+        border-radius: 10px;
+        font-size: 13px;
+        outline: none;
+        min-width: 220px;
+      }
+      input::placeholder { color: rgba(255,255,255,.45); }
+      .pill {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.16);
+        background: rgba(0,0,0,.18);
+        color: var(--muted);
+      }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid rgba(255,255,255,.10); vertical-align: top; }
+      th { font-size: 12px; color: rgba(255,255,255,.80); font-weight: 700; }
+      td { font-size: 13px; color: rgba(255,255,255,.88); }
+      .mono { font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,.82); }
+      .muted { color: var(--muted); }
+      .right { text-align: right; }
+      details { border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.18); border-radius: 12px; padding: 10px 12px; }
+      details > summary { cursor: pointer; font-weight: 700; font-size: 12px; color: rgba(255,255,255,.84); }
+      pre {
+        margin: 10px 0 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: var(--mono);
+        font-size: 12px;
+        background: rgba(0,0,0,.20);
+        border: 1px solid rgba(255,255,255,.10);
+        padding: 10px 10px;
+        border-radius: 10px;
+        max-height: 280px;
+        overflow: auto;
+      }
+      .status { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+      .ok { color: var(--good); }
+      .err { color: var(--bad); }
+      .sep { height: 1px; background: rgba(255,255,255,.12); margin: 12px 0; }
+      .k { color: rgba(255,255,255,.70); font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div>
+          <h1>Mandy Admin Dashboard</h1>
+          <div class="sub">Simple ops UI for groups + matching endpoints.</div>
+        </div>
+        <div class="row">
+          <span class="pill" id="envPill">env: unknown</span>
+          <span class="pill" id="countsPill">groups: ? • matches: ?</span>
+        </div>
+      </header>
+
+      <div class="grid">
+        <section class="card">
+          <h2>
+            <span>Groups (DB)</span>
+            <span class="row">
+              <button id="refreshBtn">Refresh</button>
+              <a class="btnlink" href="/api/groups" target="_blank" rel="noreferrer">Open /api/groups</a>
+            </span>
+          </h2>
+          <div class="content">
+            <div class="status" id="groupsStatus">Loading…</div>
+            <div class="sep"></div>
+            <div style="overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Group</th>
+                    <th>Email</th>
+                    <th class="right">Size</th>
+                    <th>Created</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="groupsTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>
+            <span>Matching / Ops</span>
+            <span class="row">
+              <a class="btnlink" href="/api/matches" target="_blank" rel="noreferrer">Open /api/matches</a>
+              <a class="btnlink" href="/health" target="_blank" rel="noreferrer">Open /health</a>
+            </span>
+          </h2>
+          <div class="content">
+            <div class="row">
+              <button class="primary" id="runMatchBtn">Run /api/match</button>
+              <button class="danger" id="resetAllBtn">DELETE /api/reset-all</button>
+            </div>
+
+            <div class="sep"></div>
+
+            <div class="row">
+              <input id="chatIdInput" placeholder="chatId (for reset/sync/poll)" />
+              <button id="resetChatBtn">DELETE /api/reset/:chatId</button>
+            </div>
+            <div class="row" style="margin-top:10px">
+              <button id="syncMiniBtn">POST /api/sync-mini-app-data/:chatId</button>
+              <button id="pollMiniBtn">POST /api/poll-mini-apps/:chatId</button>
+            </div>
+
+            <div class="sep"></div>
+
+            <details open>
+              <summary>Last endpoint response</summary>
+              <pre id="lastResponsePre">{}</pre>
+            </details>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function fmtDate(iso) {
+        if (!iso) return '';
+        try {
+          const d = new Date(iso);
+          return isNaN(d.getTime()) ? String(iso) : d.toLocaleString();
+        } catch {
+          return String(iso);
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+      }
+
+      async function callJson(url, opts) {
+        const res = await fetch(url, opts);
+        const text = await res.text();
+        let data = null;
+        try { data = JSON.parse(text); } catch { data = { raw: text }; }
+        return { ok: res.ok, status: res.status, data };
+      }
+
+      function setLastResponse(title, payload) {
+        $('lastResponsePre').textContent = JSON.stringify({ title, ...payload }, null, 2);
+      }
+
+      async function loadStats() {
+        const r = await callJson('/admin/api/stats');
+        if (r.ok && r.data) {
+          $('envPill').textContent = 'env: ' + (r.data.env || 'unknown');
+          $('countsPill').textContent = 'groups: ' + (r.data.totalGroups ?? '?') + ' • matches: ' + (r.data.totalMatches ?? '?');
+        }
+      }
+
+      function deriveSize(group) {
+        const ans = group && group.answers ? (group.answers.question2 || group.answers.q2) : null;
+        return group.groupSize || group.size || ans || '';
+      }
+
+      function deriveEmail(group) {
+        return group.email || group.contactEmail || group.contact_email || '';
+      }
+
+      function deriveName(group) {
+        return group.groupName || group.name || group.group_name || (group.answers && (group.answers.question1 || group.answers.q1)) || 'Unknown';
+      }
+
+      async function loadGroups() {
+        $('groupsStatus').textContent = 'Loading…';
+        $('groupsStatus').className = 'status';
+
+        const r = await callJson('/admin/api/groups');
+        if (!r.ok) {
+          $('groupsStatus').textContent = 'Failed to load groups (' + r.status + ')';
+          $('groupsStatus').className = 'status err';
+          setLastResponse('GET /admin/api/groups', r);
+          return;
+        }
+
+        const groups = Array.isArray(r.data.groups) ? r.data.groups : [];
+        $('groupsStatus').textContent = 'Loaded ' + groups.length + ' groups.';
+        $('groupsStatus').className = 'status ok';
+
+        const tbody = $('groupsTbody');
+        tbody.innerHTML = '';
+
+        for (const g of groups) {
+          const name = deriveName(g);
+          const email = deriveEmail(g);
+          const size = deriveSize(g);
+          const createdAt = g.createdAt || g.updatedAt || '';
+          const json = JSON.stringify(g, null, 2);
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = \`
+            <td><div class="k">\${escapeHtml(name)}</div><div class="mono muted">\${escapeHtml(g.id || '')}</div></td>
+            <td class="mono">\${escapeHtml(email)}</td>
+            <td class="right mono">\${escapeHtml(size)}</td>
+            <td class="mono">\${escapeHtml(fmtDate(createdAt))}</td>
+            <td>
+              <details>
+                <summary>JSON</summary>
+                <pre>\${escapeHtml(json)}</pre>
+              </details>
+            </td>
+          \`;
+          tbody.appendChild(tr);
+        }
+
+        await loadStats();
+      }
+
+      async function runEndpoint(title, url, opts) {
+        setLastResponse(title, { pending: true, url });
+        const r = await callJson(url, opts);
+        setLastResponse(title, { url, ...r });
+        await loadStats();
+        return r;
+      }
+
+      $('refreshBtn').addEventListener('click', loadGroups);
+      $('runMatchBtn').addEventListener('click', async () => {
+        await runEndpoint('POST /api/match', '/api/match', { method: 'POST' });
+        await loadGroups();
+      });
+      $('resetAllBtn').addEventListener('click', async () => {
+        if (!confirm('This will clear ALL interview states. Continue?')) return;
+        await runEndpoint('DELETE /api/reset-all', '/api/reset-all', { method: 'DELETE' });
+      });
+      $('resetChatBtn').addEventListener('click', async () => {
+        const chatId = $('chatIdInput').value.trim();
+        if (!chatId) return setLastResponse('DELETE /api/reset/:chatId', { error: 'Missing chatId' });
+        await runEndpoint('DELETE /api/reset/:chatId', '/api/reset/' + encodeURIComponent(chatId), { method: 'DELETE' });
+      });
+      $('syncMiniBtn').addEventListener('click', async () => {
+        const chatId = $('chatIdInput').value.trim();
+        if (!chatId) return setLastResponse('POST /api/sync-mini-app-data/:chatId', { error: 'Missing chatId' });
+        await runEndpoint('POST /api/sync-mini-app-data/:chatId', '/api/sync-mini-app-data/' + encodeURIComponent(chatId), { method: 'POST' });
+      });
+      $('pollMiniBtn').addEventListener('click', async () => {
+        const chatId = $('chatIdInput').value.trim();
+        if (!chatId) return setLastResponse('POST /api/poll-mini-apps/:chatId', { error: 'Missing chatId' });
+        await runEndpoint('POST /api/poll-mini-apps/:chatId', '/api/poll-mini-apps/' + encodeURIComponent(chatId), { method: 'POST' });
+      });
+
+      loadStats().then(loadGroups);
+    </script>
+  </body>
+</html>`);
+});
+
+app.get('/admin/api/groups', requireAdminAuth, (req, res) => {
+  const groupProfileStorage = require('./services/group-profile-storage');
+  const groups = groupProfileStorage.getAllProfiles();
+  res.json({ success: true, groups });
+});
+
+app.get('/admin/api/stats', requireAdminAuth, (req, res) => {
+  const groupProfileStorage = require('./services/group-profile-storage');
+  const totalGroups = groupProfileStorage.getAllProfiles().length;
+  const totalMatches = groupProfileStorage.getAllMatches().length;
+  res.json({
+    success: true,
+    env: process.env.NODE_ENV || (process.env.PORT ? 'production' : 'development'),
+    totalGroups,
+    totalMatches
   });
 });
 
@@ -234,11 +635,11 @@ const handleMatchRequest = async (req, res) => {
 };
 
 // Support both GET and POST for easy access (just click the URL in Railway!)
-app.get('/api/match', handleMatchRequest);
-app.post('/api/match', handleMatchRequest);
+app.get('/api/match', requireAdminAuth, handleMatchRequest);
+app.post('/api/match', requireAdminAuth, handleMatchRequest);
 
 // Get matches endpoint - retrieve saved matches
-app.get('/api/matches', (req, res) => {
+app.get('/api/matches', requireAdminAuth, (req, res) => {
   try {
     const groupProfileStorage = require('./services/group-profile-storage');
     const allMatches = groupProfileStorage.getAllMatches();
@@ -267,7 +668,7 @@ app.get('/api/matches', (req, res) => {
 });
 
 // Get groups endpoint - retrieve all group profiles
-app.get('/api/groups', (req, res) => {
+app.get('/api/groups', requireAdminAuth, (req, res) => {
   try {
     const groupProfileStorage = require('./services/group-profile-storage');
     const allProfiles = groupProfileStorage.getAllProfiles();
@@ -294,7 +695,7 @@ app.get('/api/groups', (req, res) => {
 });
 
 // Sync mini app data endpoint - manually trigger sync for a chat
-app.post('/api/sync-mini-app-data/:chatId', async (req, res) => {
+app.post('/api/sync-mini-app-data/:chatId', requireAdminAuth, async (req, res) => {
   try {
     const { chatId } = req.params;
     const mandyWebhookModule = require('./webhooks/mandy-webhook');
@@ -334,7 +735,7 @@ app.post('/api/sync-mini-app-data/:chatId', async (req, res) => {
 });
 
 // Reset/clear interview state for a chat (for testing)
-app.delete('/api/reset/:chatId', (req, res) => {
+app.delete('/api/reset/:chatId', requireAdminAuth, (req, res) => {
   try {
     const { chatId } = req.params;
     const groupProfileStorage = require('./services/group-profile-storage');
@@ -367,7 +768,7 @@ app.delete('/api/reset/:chatId', (req, res) => {
 });
 
 // Get interview state for debugging
-app.get('/api/state/:chatId', (req, res) => {
+app.get('/api/state/:chatId', requireAdminAuth, (req, res) => {
   try {
     const { chatId } = req.params;
     const groupProfileStorage = require('./services/group-profile-storage');
@@ -397,7 +798,7 @@ app.get('/api/state/:chatId', (req, res) => {
 });
 
 // Clear ALL interview states (nuclear option for testing)
-app.delete('/api/reset-all', (req, res) => {
+app.delete('/api/reset-all', requireAdminAuth, (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
@@ -529,7 +930,7 @@ app.post('/api/groups/receive', async (req, res) => {
 });
 
 // Poll and create profile from mini apps endpoint
-app.post('/api/poll-mini-apps/:chatId', async (req, res) => {
+app.post('/api/poll-mini-apps/:chatId', requireAdminAuth, async (req, res) => {
   try {
     const { chatId } = req.params;
     const mandyWebhookModule = require('./webhooks/mandy-webhook');
