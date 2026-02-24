@@ -97,8 +97,8 @@ This document explains the complete flow from receiving group data to matching g
         "success": true
       }
     ],
-    "shareLink": "https://www.a1zap.com/chat/join/match_1234567890_abc123",
-    "chatId": "match_1234567890_abc123"
+    "shareLink": "https://www.a1zap.com/chat/mandythematchmaker/group_1234567890_abc123",
+    "chatId": "group_1234567890_abc123"
   }
 }
 ```

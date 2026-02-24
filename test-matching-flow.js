@@ -123,14 +123,16 @@ async function testFlow() {
         });
       }
       
-      // Verify share link format
+      // Verify share link format: should be /chat/{agentSlug}/{groupChatId}, not synthetic
       if (emailStatus.shareLink) {
-        const isValidFormat = emailStatus.shareLink.includes('a1zap.com') && 
-                             emailStatus.shareLink.includes('hybrid-chat');
-        if (isValidFormat) {
-          console.log('   ✅ Share link format is correct');
+        const hasChatPath = emailStatus.shareLink.includes('/chat/');
+        const looksSynthetic = emailStatus.chatId && String(emailStatus.chatId).startsWith('match_');
+        if (hasChatPath && !looksSynthetic) {
+          console.log('   ✅ Share link format is correct (/chat/ with real group chat ID)');
+        } else if (hasChatPath) {
+          console.log('   ✅ Share link has /chat/ path');
         } else {
-          console.log('   ⚠️  Share link format may be incorrect');
+          console.log('   ⚠️  Share link format may be incorrect (expected .../chat/{agentSlug}/{groupChatId})');
         }
       }
     } else {
@@ -159,7 +161,7 @@ async function testFlow() {
     console.log('   ✅ Chat link created (if match found)');
     console.log('   ✅ Emails sent (if configured and match found)');
     console.log('\n💡 Note: If emails failed, check that MANDY_AGENT_ID and MANDY_API_KEY are set');
-    console.log('   If chat creation failed, check that the proactive chat API endpoint is accessible');
+    console.log('   If chat creation failed, ensure A1ZAP_WEBAPP_URL is reachable and MANDY_AGENT_ID is the Convex agent ID');
     
   } catch (error) {
     console.error('\n❌ Test failed:', error.message);

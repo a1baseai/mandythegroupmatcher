@@ -123,11 +123,11 @@ if [ -n "$EMAIL_STATUS" ]; then
     if [ -n "$SHARE_LINK" ]; then
         echo -e "${GREEN}✅ Share Link: $SHARE_LINK${NC}"
         
-        # Verify link format
-        if echo "$SHARE_LINK" | grep -q "a1zap.com/hybrid-chat"; then
-            echo -e "${GREEN}   ✅ Share link format is correct${NC}"
+        # Verify link format: /chat/ with group chat ID
+        if echo "$SHARE_LINK" | grep -q "a1zap.com/chat/"; then
+            echo -e "${GREEN}   ✅ Share link format is correct (/chat/)${NC}"
         else
-            echo -e "${YELLOW}   ⚠️  Share link format may be incorrect${NC}"
+            echo -e "${YELLOW}   ⚠️  Share link format may be incorrect (expected .../chat/{agentSlug}/{groupChatId})${NC}"
         fi
     else
         echo -e "${YELLOW}⚠️  No share link generated${NC}"
@@ -168,4 +168,4 @@ echo "   ✅ Chat link created (if match found)"
 echo "   ✅ Emails sent (if configured and match found)"
 echo ""
 echo "💡 Note: If emails failed, check that MANDY_AGENT_ID and MANDY_API_KEY are set"
-echo "   If chat creation failed, check that the proactive chat API endpoint is accessible"
+echo "   If chat creation failed, ensure A1ZAP_WEBAPP_URL is reachable and MANDY_AGENT_ID is the Convex agent ID"

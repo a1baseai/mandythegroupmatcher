@@ -92,8 +92,8 @@
 4. ✅ Saves matches to `data/matches.json`
 5. ✅ For best match:
    - ✅ Calls `emailService.sendMatchNotification()`
-   - ✅ Creates proactive chat via API
-   - ✅ Extracts chatId from response
+   - ✅ Creates group chat via webapp API
+   - ✅ Extracts group chat ID from response
    - ✅ Generates shareable link
    - ✅ Sends emails to both groups
 6. ✅ Returns match results with email status
@@ -106,11 +106,10 @@
 
 **What happens:**
 1. ✅ **Create Chat:**
-   - ✅ Calls `/v1/agents/{agentId}/chats/start-proactive`
-   - ✅ Uses first available email from either group
-   - ✅ Extracts `chatId` from API response
-   - ✅ Constructs shareable link: `https://www.a1zap.com/hybrid-chat/{agentSlug}/{chatId}`
-   - ✅ Falls back to generated link if API fails
+   - ✅ Calls `POST {A1ZAP_WEBAPP_URL}/api/agents/{agentId}/group-chat/create`
+   - ✅ Extracts `chat.id` (group chat external ID) from response
+   - ✅ Constructs shareable link: `{A1ZAP_WEBAPP_URL}/chat/{agentSlug}/{groupChatId}`
+   - ✅ On failure, does not send a synthetic link; email uses fallback CTA to Mandy page
 
 2. ✅ **Send Emails:**
    - ✅ Uses `/v1/agents/{agentId}/emails/send` endpoint
@@ -183,8 +182,9 @@ Groups click link → join group chat → Mandy helps break the ice
 
 ### ✅ Email Service
 - **Uses:** `A1ZAP_API_KEY` from config ✅
-- **Uses:** `MANDY_AGENT_ID` from config ✅
-- **Creates chat:** Via proactive chat API ✅
+- **Uses:** `MANDY_AGENT_ID` from config (Convex agent ID) ✅
+- **Creates chat:** Via webapp `POST /api/agents/{agentId}/group-chat/create` ✅
+- **Share link format:** `{A1ZAP_WEBAPP_URL}/chat/{agentSlug}/{groupChatId}` ✅
 - **Sends emails:** Via email API ✅
 - **Status:** ✅ CORRECT (if env vars are set)
 
@@ -197,8 +197,9 @@ Groups click link → join group chat → Mandy helps break the ice
 1. **a1zap-maker is deployed** with updated code
 2. **mandythegroupmatcher is running** on Railway
 3. **Environment variables are set:**
-   - `MANDY_AGENT_ID` (or in config)
+   - `MANDY_AGENT_ID` (or in config) — Convex agent ID for group-chat create
    - `A1ZAP_API_KEY` (or in config)
+   - `A1ZAP_WEBAPP_URL` or `MANDY_WEBAPP_URL` (optional, default `https://www.a1zap.com`) — webapp base for chat create and share links
    - `CLAUDE_API_KEY` (for matching)
    - `MANDY_AGENT_SLUG` (optional, defaults to 'mandythematchmaker')
    - `YELP_API_KEY` (optional, for activity planning)
@@ -208,7 +209,7 @@ Groups click link → join group chat → Mandy helps break the ice
 1. **Group signs up** → Data sent to `/api/groups/receive` ✅
 2. **Group saved** → Appears in `/api/groups` ✅
 3. **Run matching** → `/api/match` finds matches ✅
-4. **Chat created** → Proactive chat API called, chatId extracted ✅
+4. **Chat created** → Webapp group-chat API called, groupChatId extracted ✅
 5. **Emails sent** → Both groups receive notification with link ✅
 6. **Groups click link** → Join group chat, Mandy helps break ice ✅
 
