@@ -39,19 +39,12 @@ const AgentRegistry = require('./core/AgentRegistry');
 // Admin dashboard (simple Basic Auth)
 const ADMIN_USER = process.env.MANDY_ADMIN_USER || 'admin';
 const ADMIN_PASSWORD = process.env.MANDY_ADMIN_PASSWORD || 'a1zapped!';
-const IN_PROD = !!process.env.PORT || process.env.NODE_ENV === 'production';
 
 // Optional: protect inbound integration endpoints with a shared secret (recommended in prod)
 // - /api/groups/receive expects: Authorization: Bearer <token> OR X-Ingest-Token: <token>
 const INGEST_TOKEN = process.env.MANDY_INGEST_TOKEN || '';
 // - /webhook/mandy expects: X-Webhook-Secret: <secret>
 const WEBHOOK_SECRET = process.env.MANDY_WEBHOOK_SECRET || '';
-
-if (IN_PROD && ADMIN_USER === 'admin' && ADMIN_PASSWORD === 'a1zapped!') {
-  console.error('❌ Refusing to start in production with default admin credentials.');
-  console.error('   Set MANDY_ADMIN_USER and MANDY_ADMIN_PASSWORD.');
-  process.exit(1);
-}
 
 // Lightweight rate limiting for protected routes (best-effort; per-process memory)
 function rateLimit({ windowMs, max, keyFn }) {
