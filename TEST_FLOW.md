@@ -193,7 +193,7 @@ Verify that:
    - Verify API key has permission to send emails
 
 3. **Chat creation failed:**
-   - Ensure the webapp is reachable from the matcher (set `A1ZAP_WEBAPP_URL` or `MANDY_WEBAPP_URL` if not using default)
+   - Ensure the webapp is reachable from the matcher (set `A1ZAP_WEBAPP_URL` if not using default)
    - Verify `MANDY_AGENT_ID` is the Convex agent ID (used in `/api/agents/{agentId}/group-chat/create`)
    - Check webapp response for `success: true` and `chat.id`
 

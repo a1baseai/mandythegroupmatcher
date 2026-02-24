@@ -199,7 +199,7 @@ Groups click link → join group chat → Mandy helps break the ice
 3. **Environment variables are set:**
    - `MANDY_AGENT_ID` (or in config) — Convex agent ID for group-chat create
    - `A1ZAP_API_KEY` (or in config)
-   - `A1ZAP_WEBAPP_URL` or `MANDY_WEBAPP_URL` (optional, default `https://www.a1zap.com`) — webapp base for chat create and share links
+   - `A1ZAP_WEBAPP_URL` (optional, default `https://www.a1zap.com`) — webapp base for chat create and share links
    - `CLAUDE_API_KEY` (for matching)
    - `MANDY_AGENT_SLUG` (optional, defaults to 'mandythematchmaker')
    - `YELP_API_KEY` (optional, for activity planning)

@@ -13,7 +13,7 @@ class EmailService {
     this.mandyApiKey = process.env.MANDY_API_KEY || process.env.A1ZAP_API_KEY || config.agents.mandy.apiKey;
     this.a1zapApiUrl = process.env.A1ZAP_API_URL || 'https://api.a1zap.com';
     // Webapp base URL for group-chat create and share links (e.g. https://www.a1zap.com)
-    this.webappBaseUrl = (process.env.A1ZAP_WEBAPP_URL || process.env.MANDY_WEBAPP_URL || 'https://www.a1zap.com').replace(/\/$/, '');
+    this.webappBaseUrl = (process.env.A1ZAP_WEBAPP_URL || 'https://www.a1zap.com').replace(/\/$/, '');
     // Agent slug for constructing shareable links (e.g., "mandythematchmaker")
     this.agentSlug = process.env.MANDY_AGENT_SLUG || 'mandythematchmaker';
   }
@@ -117,7 +117,7 @@ class EmailService {
     const payload = {
       name: chatName,
       isAnonymous: true,
-      anonymousUserId: `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      anonymousUserId: `match_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       anonymousUserName: 'Mandy Match'
     };
 
@@ -205,9 +205,10 @@ class EmailService {
           </a>
         </p>
         <p style="font-size: 12px; color: #666;">Or copy this link: ${shareLink}</p>
-        
+        ${hasChatLink ? `
         <h2 style="color: #A51C30;">Next Steps</h2>
         <p>${nextSteps}</p>
+        ` : `<p>${nextSteps}</p>`}
         
         <p>Best,<br>Mandy the Matchmaker</p>
       </div>

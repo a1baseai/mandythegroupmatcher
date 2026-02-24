@@ -123,8 +123,8 @@ if [ -n "$EMAIL_STATUS" ]; then
     if [ -n "$SHARE_LINK" ]; then
         echo -e "${GREEN}✅ Share Link: $SHARE_LINK${NC}"
         
-        # Verify link format: /chat/ with group chat ID
-        if echo "$SHARE_LINK" | grep -q "a1zap.com/chat/"; then
+        # Verify link format: path contains /chat/ (any host)
+        if echo "$SHARE_LINK" | grep -q "/chat/"; then
             echo -e "${GREEN}   ✅ Share link format is correct (/chat/)${NC}"
         else
             echo -e "${YELLOW}   ⚠️  Share link format may be incorrect (expected .../chat/{agentSlug}/{groupChatId})${NC}"
