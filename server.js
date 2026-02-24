@@ -152,21 +152,143 @@ app.get('/health', (req, res) => {
 
 // Root endpoint
 app.get('/', (req, res) => {
-  res.json({
-    service: 'Mandy the Group Matchmaker',
-    version: '1.0.0',
-    endpoints: {
-      health: 'GET /health',
-      mandy: 'POST /webhook/mandy',
-      groups: 'GET /api/groups',
-      receiveGroup: 'POST /api/groups/receive - Receive group data from main server',
-      matches: 'GET /api/matches',
-      match: 'GET/POST /api/match - Run matching algorithm and send emails',
-      state: 'GET /api/state/:chatId',
-      reset: 'DELETE /api/reset/:chatId',
-      resetAll: 'DELETE /api/reset-all'
-    }
-  });
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meet Other Harvard Blocking Groups</title>
+    <meta name="description" content="Blocking season is better when meeting people actually feels easy. Create your group profile and get matched." />
+    <style>
+      :root {
+        --bg1: #5b0f1f;
+        --bg2: #861428;
+        --accent: #ffdde3;
+        --btn: #ffffff;
+        --btnText: #7a1024;
+        --muted: rgba(255,255,255,.78);
+        --text: rgba(255,255,255,.94);
+        --shadow: 0 18px 50px rgba(0,0,0,.35);
+        --border: rgba(255,255,255,.18);
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        color: var(--text);
+        background:
+          radial-gradient(1400px 800px at 20% 10%, rgba(255,255,255,.10), transparent 55%),
+          radial-gradient(900px 700px at 85% 30%, rgba(0,0,0,.22), transparent 60%),
+          radial-gradient(3px 3px at 25% 35%, rgba(255,255,255,.10), transparent 60%),
+          radial-gradient(3px 3px at 60% 55%, rgba(255,255,255,.10), transparent 60%),
+          radial-gradient(3px 3px at 78% 42%, rgba(255,255,255,.10), transparent 60%),
+          linear-gradient(135deg, var(--bg1), var(--bg2));
+      }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 64px 18px 72px; }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid rgba(255,255,255,.20);
+        background: rgba(0,0,0,.18);
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        color: rgba(255,255,255,.86);
+        letter-spacing: .2px;
+      }
+      .hero { margin-top: 34px; text-align: center; }
+      h1 {
+        margin: 0;
+        font-size: clamp(34px, 5vw, 54px);
+        line-height: 1.05;
+        letter-spacing: -0.4px;
+      }
+      h1 .accent { color: var(--accent); }
+      .subtitle {
+        margin: 16px auto 0;
+        max-width: 720px;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+      .ctaRow { margin-top: 26px; display: flex; justify-content: center; }
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 14px 18px;
+        border-radius: 999px;
+        background: var(--btn);
+        color: var(--btnText);
+        text-decoration: none;
+        font-weight: 800;
+        border: 1px solid rgba(255,255,255,.28);
+        box-shadow: var(--shadow);
+        transition: transform .06s ease, filter .12s ease;
+      }
+      .cta:hover { filter: brightness(1.02); }
+      .cta:active { transform: translateY(1px); }
+      .note {
+        margin-top: 10px;
+        font-size: 12px;
+        color: rgba(255,255,255,.78);
+      }
+      .panel {
+        margin: 28px auto 0;
+        max-width: 760px;
+        border: 1px solid var(--border);
+        background: rgba(0,0,0,.16);
+        border-radius: 16px;
+        padding: 14px 14px;
+        color: rgba(255,255,255,.86);
+        font-size: 13px;
+        box-shadow: 0 12px 30px rgba(0,0,0,.22);
+      }
+      .panelTitle { font-weight: 800; margin-bottom: 6px; }
+      .panelBody { color: rgba(255,255,255,.76); line-height: 1.45; }
+      footer {
+        margin-top: 40px;
+        text-align: center;
+        color: rgba(255,255,255,.55);
+        font-size: 12px;
+      }
+      footer a { color: rgba(255,255,255,.78); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="badge">♡ Make Blocking Season Social</div>
+
+      <div class="hero">
+        <h1>Meet Other Harvard<br /><span class="accent">Blocking</span> Groups</h1>
+        <p class="subtitle">
+          Blocking season is better when meeting people actually feels easy. Mandy helps your group get discovered,
+          start group chats, and turn intros into real hangouts.
+        </p>
+
+        <div class="ctaRow">
+          <a class="cta" href="https://www.a1zap.com/harvard/mandy/join">Join Now →</a>
+        </div>
+        <div class="note">We’ll cover your first meetup activity!</div>
+
+        <div class="panel">
+          <div class="panelTitle">Early access for Harvard undergrads is live.</div>
+          <div class="panelBody">
+            Create your group profile now to get first access to matching rounds and curated intros.
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        Admin? Go to <a href="/admin">/admin</a>.
+      </footer>
+    </div>
+  </body>
+</html>`);
 });
 
 // Admin dashboard (Basic Auth)
