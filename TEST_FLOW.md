@@ -132,8 +132,8 @@ curl -X POST https://mandythegroupmatcher-production.up.railway.app/api/match
         "success": true
       }
     ],
-    "shareLink": "https://www.a1zap.com/hybrid-chat/mandythematchmaker/{chatId}",
-    "chatId": "{chatId}"
+    "shareLink": "https://www.a1zap.com/chat/mandythematchmaker/{groupChatId}",
+    "chatId": "{groupChatId}"
   }
 }
 ```
@@ -141,9 +141,9 @@ curl -X POST https://mandythegroupmatcher-production.up.railway.app/api/match
 ### Step 5: Verify Share Link Format
 
 The `shareLink` should:
-- ✅ Start with `https://www.a1zap.com/hybrid-chat/`
+- ✅ Start with the webapp base URL (e.g. `https://www.a1zap.com/chat/`)
 - ✅ Include the agent slug (e.g., `mandythematchmaker`)
-- ✅ Include a valid chatId
+- ✅ Include a valid group chat ID (e.g. `group_...`)
 - ✅ Be a clickable URL
 
 ### Step 6: Check Email Status
@@ -169,10 +169,10 @@ Verify that:
    - Match is saved to `data/matches.json`
 
 3. **Chat Creation:**
-   - Proactive chat is created via API
-   - ChatId is extracted from API response
+   - Group chat is created via webapp API (`POST {A1ZAP_WEBAPP_URL}/api/agents/{agentId}/group-chat/create`)
+   - Group chat ID is taken from response `chat.id`
    - Shareable link is constructed correctly
-   - Link format: `https://www.a1zap.com/hybrid-chat/{agentSlug}/{chatId}`
+   - Link format: `{A1ZAP_WEBAPP_URL}/chat/{agentSlug}/{groupChatId}`
 
 4. **Email Sending:**
    - Emails are sent to both groups
@@ -193,13 +193,13 @@ Verify that:
    - Verify API key has permission to send emails
 
 3. **Chat creation failed:**
-   - Check that proactive chat API endpoint is accessible
-   - Verify `MANDY_AGENT_ID` is correct
-   - Check API response format - chatId might be in different field
+   - Ensure the webapp is reachable from the matcher (set `A1ZAP_WEBAPP_URL` if not using default)
+   - Verify `MANDY_AGENT_ID` is the Convex agent ID (used in `/api/agents/{agentId}/group-chat/create`)
+   - Check webapp response for `success: true` and `chat.id`
 
 4. **Share link format incorrect:**
-   - Verify `MANDY_AGENT_SLUG` environment variable matches your agent slug
-   - Default is `mandythematchmaker` if not set
+   - Verify `MANDY_AGENT_SLUG` matches your agent handle (e.g. `mandythematchmaker`)
+   - Share links use `/chat/{agentSlug}/{groupChatId}` (not `/hybrid-chat/`)
 
 ## Using the Test Script
 
