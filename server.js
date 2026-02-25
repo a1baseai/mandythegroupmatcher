@@ -141,7 +141,8 @@ app.use((req, res, next) => {
 // Redirect legacy invite links to the webapp (so existing mandy.a1zap.com/join/... links work)
 const WEBAPP_BASE = (process.env.A1ZAP_WEBAPP_URL || 'https://www.a1zap.com').replace(/\/$/, '');
 app.get('/join', (req, res) => {
-  res.redirect(302, `${WEBAPP_BASE}/harvard/mandy/join`);
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  res.redirect(302, `${WEBAPP_BASE}/harvard/mandy/join${qs}`);
 });
 app.get('/join/:groupName', (req, res) => {
   const segment = encodeURIComponent(decodeURIComponent(req.params.groupName));
