@@ -145,7 +145,10 @@ app.get('/join', (req, res) => {
   res.redirect(302, `${WEBAPP_BASE}/harvard/mandy/join${qs}`);
 });
 app.get('/join/:groupName', (req, res) => {
-  const segment = encodeURIComponent(decodeURIComponent(req.params.groupName));
+  if (!req.params.groupName) {
+    return res.redirect(302, `${WEBAPP_BASE}/harvard/mandy/join`);
+  }
+  const segment = encodeURIComponent(req.params.groupName);
   res.redirect(302, `${WEBAPP_BASE}/join/${segment}`);
 });
 
