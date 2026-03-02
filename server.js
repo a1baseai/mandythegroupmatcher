@@ -467,6 +467,7 @@ app.get('/admin', requireAdminAuth, (req, res) => {
                     <th>Email</th>
                     <th class="right">Size</th>
                     <th>Created</th>
+                    <th class="right">Actions</th>
                     <th>Details</th>
                   </tr>
                 </thead>
@@ -564,6 +565,10 @@ app.get('/admin', requireAdminAuth, (req, res) => {
         return group.groupName || group.name || group.group_name || (group.answers && (group.answers.question1 || group.answers.q1)) || 'Unknown';
       }
 
+      function isArchived(group) {
+        return !!(group && (group.deletedAt || group.isDeleted));
+      }
+
       async function loadGroups() {
         $('groupsStatus').textContent = 'Loading…';
         $('groupsStatus').className = 'status';
@@ -588,14 +593,25 @@ app.get('/admin', requireAdminAuth, (req, res) => {
           const email = deriveEmail(g);
           const size = deriveSize(g);
           const createdAt = g.createdAt || g.updatedAt || '';
+          const archived = isArchived(g);
           const json = JSON.stringify(g, null, 2);
 
           const tr = document.createElement('tr');
+          const safeId = encodeURIComponent(String(g.id || ''));
           tr.innerHTML = \`
-            <td><div class="k">\${escapeHtml(name)}</div><div class="mono muted">\${escapeHtml(g.id || '')}</div></td>
+            <td>
+              <div class="k">\${escapeHtml(name)} \${archived ? '<span class="pill" style="margin-left:8px;border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.10);color:rgba(255,255,255,.85)">Archived</span>' : ''}</div>
+              <div class="mono muted">\${escapeHtml(g.id || '')}</div>
+            </td>
             <td class="mono">\${escapeHtml(email)}</td>
             <td class="right mono">\${escapeHtml(size)}</td>
             <td class="mono">\${escapeHtml(fmtDate(createdAt))}</td>
+            <td class="right">
+              \${archived
+                ? '<button data-restore-id=\"' + escapeHtml(g.id || '') + '\" ' + (g.id ? '' : 'disabled') + '>Restore</button>'
+                : '<button class=\"danger\" data-archive-id=\"' + escapeHtml(g.id || '') + '\" ' + (g.id ? '' : 'disabled') + '>Archive</button>'
+              }
+            </td>
             <td>
               <details>
                 <summary>JSON</summary>
@@ -604,6 +620,38 @@ app.get('/admin', requireAdminAuth, (req, res) => {
             </td>
           \`;
           tbody.appendChild(tr);
+        }
+
+        // Wire archive buttons after rendering
+        for (const btn of tbody.querySelectorAll('button[data-archive-id]')) {
+          btn.addEventListener('click', async (e) => {
+            const id = btn.getAttribute('data-archive-id');
+            if (!id) return;
+            const row = btn.closest('tr');
+            const groupLabel = row ? (row.querySelector('.k')?.textContent || id) : id;
+            if (!confirm('Archive group "' + groupLabel + '"? It will be excluded from matching.')) return;
+
+            const r = await runEndpoint('DELETE /admin/api/groups/:id', '/admin/api/groups/' + encodeURIComponent(id), { method: 'DELETE' });
+            if (r.ok) {
+              await loadGroups();
+            }
+          });
+        }
+
+        // Wire restore buttons after rendering
+        for (const btn of tbody.querySelectorAll('button[data-restore-id]')) {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-restore-id');
+            if (!id) return;
+            const row = btn.closest('tr');
+            const groupLabel = row ? (row.querySelector('.k')?.textContent || id) : id;
+            if (!confirm('Restore group "' + groupLabel + '"? It will be eligible for matching again.')) return;
+
+            const r = await runEndpoint('POST /admin/api/groups/:id/restore', '/admin/api/groups/' + encodeURIComponent(id) + '/restore', { method: 'POST' });
+            if (r.ok) {
+              await loadGroups();
+            }
+          });
         }
 
         await loadStats();
@@ -654,9 +702,29 @@ app.get('/admin/api/groups', requireAdminAuth, (req, res) => {
   res.json({ success: true, groups });
 });
 
+app.delete('/admin/api/groups/:id', requireAdminAuth, (req, res) => {
+  const groupProfileStorage = require('./services/group-profile-storage');
+  const { id } = req.params;
+  const result = groupProfileStorage.softDeleteGroupProfileById(id);
+  if (!result.success) {
+    return res.status(404).json(result);
+  }
+  return res.json(result);
+});
+
+app.post('/admin/api/groups/:id/restore', requireAdminAuth, (req, res) => {
+  const groupProfileStorage = require('./services/group-profile-storage');
+  const { id } = req.params;
+  const result = groupProfileStorage.restoreGroupProfileById(id);
+  if (!result.success) {
+    return res.status(404).json(result);
+  }
+  return res.json(result);
+});
+
 app.get('/admin/api/stats', requireAdminAuth, (req, res) => {
   const groupProfileStorage = require('./services/group-profile-storage');
-  const totalGroups = groupProfileStorage.getAllProfiles().length;
+  const totalGroups = groupProfileStorage.getActiveProfiles().length;
   const totalMatches = groupProfileStorage.getAllMatches().length;
   res.json({
     success: true,
@@ -680,7 +748,7 @@ const handleMatchRequest = async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     
-    const allProfiles = groupProfileStorage.getAllProfiles();
+    const allProfiles = groupProfileStorage.getActiveProfiles();
     
     if (allProfiles.length < 2) {
       return res.status(400).json({

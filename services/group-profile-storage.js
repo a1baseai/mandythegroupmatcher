@@ -187,6 +187,18 @@ function getAllProfiles() {
   return (profiles.groups || []).map(normalizeGroupName);
 }
 
+function isSoftDeleted(profile) {
+  return !!(profile && (profile.deletedAt || profile.isDeleted));
+}
+
+/**
+ * Get active (non-deleted) group profiles
+ * @returns {Array} Array of active group profiles
+ */
+function getActiveProfiles() {
+  return getAllProfiles().filter(p => !isSoftDeleted(p));
+}
+
 /**
  * Get a profile by group name
  * @param {string} groupName - Group name
@@ -208,6 +220,91 @@ function getProfileByGroupName(groupName) {
 function getProfileByChatId(chatId) {
   const profiles = loadProfiles();
   return profiles.groups.find(g => g.chatId === chatId) || null;
+}
+
+/**
+ * Soft delete (archive) a group profile by ID (and prune related stored matches/state)
+ * @param {string} id - Group profile ID
+ * @returns {{ success: boolean, archived?: Object, removedMatches?: number, error?: string }}
+ */
+function softDeleteGroupProfileById(id) {
+  if (!id) return { success: false, error: 'Missing id' };
+
+  const profiles = loadProfiles();
+  const idx = (profiles.groups || []).findIndex(g => g && g.id === id);
+  if (idx === -1) return { success: false, error: `Group not found: ${id}` };
+
+  const existing = profiles.groups[idx];
+  if (existing && (existing.deletedAt || existing.isDeleted)) {
+    return { success: true, archived: existing, removedMatches: 0 };
+  }
+
+  profiles.groups[idx] = {
+    ...existing,
+    isDeleted: true,
+    deletedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  saveProfiles(profiles);
+
+  // Best-effort: clear interview state for this chat if present
+  try {
+    if (profiles.groups[idx]?.chatId) {
+      clearInterviewState(profiles.groups[idx].chatId);
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Best-effort cleanup: remove matches that reference this group's id or name
+  let removedMatches = 0;
+  try {
+    const matchesData = loadMatches();
+    const archived = profiles.groups[idx];
+    const archivedName = archived?.groupName || archived?.name || archived?.group_name || null;
+    const before = (matchesData.matches || []).length;
+    matchesData.matches = (matchesData.matches || []).filter(m => {
+      if (!m) return false;
+      if (id && (m.group1Id === id || m.group2Id === id)) return false;
+      if (archivedName && (safeLower(m.group1Name) === safeLower(archivedName) || safeLower(m.group2Name) === safeLower(archivedName))) return false;
+      return true;
+    });
+    removedMatches = before - matchesData.matches.length;
+    saveMatches(matchesData);
+  } catch (e) {
+    // ignore
+  }
+
+  const archived = profiles.groups[idx];
+  console.log(`🗃️  Archived group profile: ${archived?.groupName || archived?.name || id} (ID: ${id})`);
+  return { success: true, archived, removedMatches };
+}
+
+/**
+ * Restore a soft-deleted (archived) group profile by ID
+ * @param {string} id - Group profile ID
+ * @returns {{ success: boolean, restored?: Object, error?: string }}
+ */
+function restoreGroupProfileById(id) {
+  if (!id) return { success: false, error: 'Missing id' };
+  const profiles = loadProfiles();
+  const idx = (profiles.groups || []).findIndex(g => g && g.id === id);
+  if (idx === -1) return { success: false, error: `Group not found: ${id}` };
+
+  const existing = profiles.groups[idx];
+  if (!existing || (!existing.deletedAt && !existing.isDeleted)) {
+    return { success: true, restored: existing };
+  }
+
+  const restored = { ...existing };
+  delete restored.deletedAt;
+  delete restored.isDeleted;
+  restored.updatedAt = new Date().toISOString();
+  profiles.groups[idx] = restored;
+  saveProfiles(profiles);
+
+  console.log(`♻️  Restored group profile: ${restored?.groupName || restored?.name || id} (ID: ${id})`);
+  return { success: true, restored };
 }
 
 /**
@@ -534,8 +631,11 @@ module.exports = {
   groupNameExists,
   saveGroupProfile,
   getAllProfiles,
+  getActiveProfiles,
   getProfileByGroupName,
   getProfileByChatId,
+  softDeleteGroupProfileById,
+  restoreGroupProfileById,
   getProfileByCompositeKey,
   updateProfile,
   saveMatch,

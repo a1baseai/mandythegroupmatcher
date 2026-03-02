@@ -382,7 +382,7 @@ function getSizeMatchScore(group1, group2) {
  * @returns {Promise<Array>} Array of { group, compatibility } objects
  */
 async function findMatchesForGroup(groupName, limit = 5) {
-  const allProfiles = groupProfileStorage.getAllProfiles();
+  const allProfiles = groupProfileStorage.getActiveProfiles();
   const targetGroup = groupProfileStorage.getProfileByGroupName(groupName);
 
   if (!targetGroup) {
@@ -416,7 +416,7 @@ async function findMatchesForGroup(groupName, limit = 5) {
  * @returns {Promise<Object|null>} { group1, group2, compatibility } or null
  */
 async function findBestMatch() {
-  const allProfiles = groupProfileStorage.getAllProfiles();
+  const allProfiles = groupProfileStorage.getActiveProfiles();
 
   if (allProfiles.length < 2) {
     return null; // Need at least 2 groups
@@ -449,7 +449,7 @@ async function findBestMatch() {
  * @returns {Object} Statistics about matching
  */
 function getMatchingStats() {
-  const allProfiles = groupProfileStorage.getAllProfiles();
+  const allProfiles = groupProfileStorage.getActiveProfiles();
   const totalPossiblePairs = allProfiles.length >= 2 
     ? (allProfiles.length * (allProfiles.length - 1)) / 2 
     : 0;
