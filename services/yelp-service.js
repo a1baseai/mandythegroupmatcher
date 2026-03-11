@@ -207,6 +207,16 @@ class YelpService {
   formatBusiness(business) {
     if (!business) return null;
 
+    // Ensure we have a valid Yelp business URL
+    // Yelp API returns business.url which should be the direct business page
+    let businessUrl = business.url;
+    if (!businessUrl && business.id) {
+      // Fallback: construct URL from business ID if URL is missing
+      // Yelp business URLs are typically: https://www.yelp.com/biz/{alias}
+      // But we need the alias, so we'll use the ID-based format if needed
+      businessUrl = `https://www.yelp.com/biz/${business.id}`;
+    }
+
     return {
       id: business.id,
       name: business.name,
@@ -214,7 +224,7 @@ class YelpService {
       reviewCount: business.review_count,
       price: business.price || 'N/A',
       phone: business.phone,
-      url: business.url,
+      url: businessUrl, // Use validated URL
       imageUrl: business.image_url,
       photos: business.photos || [],
       categories: (business.categories || []).map(cat => cat.title).join(', '),

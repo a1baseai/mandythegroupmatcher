@@ -402,105 +402,58 @@ class MandyWebhook extends BaseWebhook {
         });
       }
       
-      // Check if user is asking for another game (only if Mandy's name is mentioned)
+      // Check if user is asking for a mini app/game (only if Mandy's name is mentioned)
       const userMsgLower = userMessage.toLowerCase();
       const mentionsMandy = userMsgLower.includes('mandy');
-      const askingForGame = userMsgLower.includes('another') || 
-                           userMsgLower.includes('more') ||
-                           userMsgLower.includes('next') ||
-                           userMsgLower.includes('game') ||
-                           userMsgLower.includes('send') ||
-                           (userMsgLower.includes('one') && userMsgLower.includes('more'));
+      const askingForGame = (userMsgLower.includes('game') || 
+                           userMsgLower.includes('mini app') ||
+                           userMsgLower.includes('mini-app') ||
+                           userMsgLower.includes('app')) &&
+                           (userMsgLower.includes('send') || 
+                            userMsgLower.includes('want') ||
+                            userMsgLower.includes('need') ||
+                            userMsgLower.includes('another') ||
+                            userMsgLower.includes('more'));
       
       // Get list of sent games from interview state
       const sentGameIds = interviewState?.sentGameIds || [];
+      const miniAppsShared = interviewState?.miniAppsShared || false;
       
-      // If user is asking for a game AND mentioned Mandy, send one
-      if (askingForGame && mentionsMandy && miniAppsShared) {
+      // Initialize miniAppsShared flag if not set (for tracking)
+      if (!miniAppsShared && interviewState) {
+        const currentState = groupProfileStorage.getInterviewState(chatId) || {};
+        groupProfileStorage.setInterviewState(chatId, {
+          ...currentState,
+          sessionId: currentSessionId,
+          miniAppsShared: false, // Not shared yet - only share when explicitly requested
+          sentGameIds: []  // Initialize empty array to track sent games
+        });
+      }
+      
+      // Only send mini app if user explicitly asks for one AND mentioned Mandy
+      if (askingForGame && mentionsMandy) {
         const result = await this.shareOneRandomMiniApp(chatId, currentSessionId, sentGameIds);
         if (result) {
-        return {
+          // Mark as shared if this is the first one
+          if (!miniAppsShared) {
+            const currentState = groupProfileStorage.getInterviewState(chatId) || {};
+            groupProfileStorage.setInterviewState(chatId, {
+              ...currentState,
+              miniAppsShared: true,
+              sharedAt: new Date().toISOString()
+            });
+          }
+          return {
             response: null,
             sent: true  // Game already sent by shareOneRandomMiniApp
           };
         } else {
           // All games have been sent
           return {
-            response: `You've played all my games! 🎮 That's awesome - you're basically a pro now! 😂 If you want to discover more games, scroll through the Public Zaps feed! Hope you're all having fun and getting comfortable! 💕`,
-          sent: false
-        };
-      }
-      }
-      
-      if (!miniAppsShared) {
-        // Share FIRST mini app (randomly chosen)
-        console.log(`🎮 [Mandy] Sharing first mini app`);
-        console.log(`  Chat ID: ${chatId}`);
-        console.log(`  Session ID: ${currentSessionId}`);
-        
-        // Check if mini apps are configured
-        const miniApps = config.agents.mandy.miniApps || {};
-        const availableApps = Object.entries(miniApps).filter(([_, appConfig]) => {
-          const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
-          return appId && !appId.includes('your_');
-        });
-        console.log(`  Available mini apps: ${availableApps.length}`);
-        
-        if (availableApps.length === 0) {
-          console.error(`❌ [Mandy] No mini apps configured!`);
-          return {
-            response: `Oops! I don't have any games set up yet. Let me fix that! 🎮`,
+            response: `You've played all my games! 🎮 That's awesome! If you want to discover more games, scroll through the Public Zaps feed!`,
             sent: false
           };
         }
-        
-        // Mark as shared FIRST to prevent duplicate calls
-        const currentState = groupProfileStorage.getInterviewState(chatId) || {};
-        groupProfileStorage.setInterviewState(chatId, {
-          ...currentState,
-          sessionId: currentSessionId,
-          miniAppsShared: true,
-          sharedAt: new Date().toISOString(),
-          sentGameIds: []  // Initialize empty array to track sent games
-        });
-        
-        // Share one random mini app
-        try {
-          console.log(`  Attempting to share first random mini app...`);
-          const shared = await this.shareOneRandomMiniApp(chatId, currentSessionId, []);
-          if (shared) {
-            console.log(`  ✅ First mini app shared successfully`);
-            return {
-              response: null,
-              sent: true  // Game already sent
-            };
-          } else {
-            return {
-              response: `Having trouble setting up the game right now. Can you check with A1Zap support? 🎮`,
-              sent: false
-            };
-          }
-        } catch (err) {
-          console.error(`❌ [Mandy] Error sharing mini app:`, err);
-          console.error(`  Error message: ${err.message}`);
-          if (err.response) {
-            console.error(`  Status: ${err.response.status}`);
-            console.error(`  Data:`, JSON.stringify(err.response.data, null, 2));
-          }
-          
-          // Reset the flag so we can try again
-          const state = groupProfileStorage.getInterviewState(chatId);
-          if (state) {
-            state.miniAppsShared = false;
-            groupProfileStorage.setInterviewState(chatId, state);
-          }
-          
-          // Provide helpful error message
-        return {
-            response: `Having trouble setting up the game right now. The API is returning an error. Can you check with A1Zap support? 🎮`,
-          sent: false
-        };
-      }
       }
       
       // Step 3: Silently update/create profile in background (no announcements)
@@ -693,7 +646,17 @@ class MandyWebhook extends BaseWebhook {
               contextMessage += `⚠️ IMPORTANT: The user hasn't specified their location yet. Politely ask for their city/area so you can give accurate recommendations. Say something like "What city are you in? I want to find you the best spots nearby!" but keep it funny.\n\n`;
             }
             contextMessage += `${activityPlanningService.formatActivityRecommendations(searchResult)}\n\n`;
-            contextMessage += `Use this information to help the group find ${activityQuery}${location ? ` in ${location}` : ''}. Be specific with the recommendations, include the names and details from the search results. CRITICAL: When you mention any restaurant or business name from the list above, you MUST copy the exact markdown link format: [**Name**](Yelp URL). Do NOT just write the name - you MUST include the link in markdown format so users can click it. Example: If you see "[**Restaurant Name**](https://yelp.com/...)", you must include that exact format in your response. Keep your response funny and engaging!`;
+            contextMessage += `Use this information to help the group find ${activityQuery}${location ? ` in ${location}` : ''}. Be specific with the recommendations, include the names and details from the search results. 
+
+CRITICAL LINKING RULES:
+- When you mention ANY restaurant or business name from the list above, you MUST use the EXACT markdown link format shown: [**Name**](Yelp URL)
+- DO NOT create your own links or use Google Maps links
+- DO NOT just write the name without the link
+- COPY the exact format from the list above - if it shows "[**Restaurant Name**](https://www.yelp.com/biz/...)", use that EXACT format
+- The Yelp URLs in the list are the correct, specific business pages - use them exactly as shown
+- Example: If the list shows "[**Joe's Pizza**](https://www.yelp.com/biz/joes-pizza-boston)", you must write it exactly like that in your response
+
+Keep your response concise, helpful, and friendly!`;
             
             activityContext = contextMessage;
             console.log(`✅ [Mandy] Activity planning info retrieved for: ${activityQuery}${location ? ` in ${location}` : ''}`);
@@ -1089,38 +1052,10 @@ Return ONLY valid JSON, no other text.`;
         return false;
       }
       
-      // Determine which game to send based on priority order
-      let selectedApp = null;
-      
-      // First game: Always send Lie Reveal (miniApp16)
-      if (sentGameIds.length === 0) {
-        const lieRevealId = 'xs7ewa9qdjqmfe11adhhetb57x80hxs6';
-        selectedApp = unsentApps.find(([_, appConfig]) => {
-          const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
-          return appId === lieRevealId;
-        });
-        if (selectedApp) {
-          console.log(`🎮 [Mandy] First game: Always sending Lie Reveal`);
-        }
-      }
-      // Second game: Always send Name Crossword (miniApp21)
-      else if (sentGameIds.length === 1) {
-        const nameCrosswordId = 'xs7a9db6143badvgv018z0kgwx80t1e7';
-        selectedApp = unsentApps.find(([_, appConfig]) => {
-          const appId = typeof appConfig === 'string' ? appConfig : appConfig?.id;
-          return appId === nameCrosswordId;
-        });
-        if (selectedApp) {
-          console.log(`🎮 [Mandy] Second game: Always sending Name Crossword`);
-        }
-      }
-      
-      // If priority game not found or already sent, pick random from unsent games
-      if (!selectedApp) {
-        const randomIndex = Math.floor(Math.random() * unsentApps.length);
-        selectedApp = unsentApps[randomIndex];
-        console.log(`🎮 [Mandy] Random game selected (index: ${randomIndex})`);
-      }
+      // Pick random from unsent games (no priority order)
+      const randomIndex = Math.floor(Math.random() * unsentApps.length);
+      const selectedApp = unsentApps[randomIndex];
+      console.log(`🎮 [Mandy] Random game selected (index: ${randomIndex})`);
       
       const [appName, appConfig] = selectedApp;
       
