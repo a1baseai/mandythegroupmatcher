@@ -417,7 +417,6 @@ class MandyWebhook extends BaseWebhook {
       
       // Get list of sent games from interview state
       const sentGameIds = interviewState?.sentGameIds || [];
-      const miniAppsShared = interviewState?.miniAppsShared || false;
       
       // Initialize miniAppsShared flag if not set (for tracking)
       if (!miniAppsShared && interviewState) {
