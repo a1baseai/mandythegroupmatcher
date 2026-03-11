@@ -89,29 +89,35 @@ class ActivityPlanningService {
       let yelpUrl = '';
       let mapsUrl = '';
 
-      // Try Yelp API first if configured
-      if (this.useYelp && location) {
+      // Try Yelp API first if configured (prioritize Yelp for accuracy)
+      if (this.useYelp) {
         try {
-          const yelpResults = await yelpService.searchBusinesses(query, location, {
-            limit: 5,
-            sortBy: 'rating'
-          });
+          // Use location if provided, otherwise try to extract from query
+          const searchLocation = location || this.extractLocation(query);
+          
+          if (searchLocation) {
+            const yelpResults = await yelpService.searchBusinesses(query, searchLocation, {
+              limit: 5,
+              sortBy: 'best_match', // Best match considers rating, distance, and review count
+              openNow: true // Only show open businesses
+            });
 
-          if (yelpResults.success && yelpResults.businesses.length > 0) {
-            recommendations = yelpService.formatBusinesses(yelpResults.businesses).map(business => ({
-              name: business.name,
-              description: business.categories || 'Restaurant',
-              address: business.address,
-              rating: business.rating,
-              reviewCount: business.reviewCount,
-              price: business.price,
-              url: business.url,
-              imageUrl: business.imageUrl,
-              distance: business.distance,
-              phone: business.phone
-            }));
+            if (yelpResults.success && yelpResults.businesses.length > 0) {
+              recommendations = yelpService.formatBusinesses(yelpResults.businesses).map(business => ({
+                name: business.name,
+                description: business.categories || 'Restaurant',
+                address: business.address,
+                rating: business.rating,
+                reviewCount: business.reviewCount,
+                price: business.price,
+                url: business.url,
+                imageUrl: business.imageUrl,
+                distance: business.distance,
+                phone: business.phone
+              }));
 
-            console.log(`✅ [ActivityPlanning] Found ${recommendations.length} businesses via Yelp API`);
+              console.log(`✅ [ActivityPlanning] Found ${recommendations.length} businesses via Yelp API`);
+            }
           }
         } catch (yelpError) {
           console.warn(`⚠️  [ActivityPlanning] Yelp API error, using fallback:`, yelpError.message);
@@ -255,29 +261,31 @@ class ActivityPlanningService {
 
   /**
    * Format activity recommendations for Mandy to share
+   * Concise, accurate format with prominent Yelp links
    * @param {Object} searchResult - Result from searchActivities
    * @returns {string} Formatted message for Mandy to send
    */
   formatActivityRecommendations(searchResult) {
     if (!searchResult.success) {
-      return `Hmm, having trouble finding that right now! 😅 Try searching on Google Maps or Yelp - they're usually pretty good at finding local spots!`;
+      return `Having trouble finding that right now! 😅 Try [Yelp](https://www.yelp.com) or [Google Maps](https://www.google.com/maps) for local spots.`;
     }
 
-    let message = `Here are some great options${searchResult.location ? ` in ${searchResult.location}` : ''}:\n\n`;
+    // Concise header
+    let message = `Top picks${searchResult.location ? ` in ${searchResult.location}` : ''}:\n\n`;
     
-    // Add specific recommendations if available
+    // Add specific recommendations if available (prioritize Yelp results)
     if (searchResult.recommendations && searchResult.recommendations.length > 0) {
       searchResult.recommendations.slice(0, 5).forEach((rec, index) => {
         if (rec.name) {
-          // Make the name a clickable Yelp link (bold the link text)
+          // Make the name a prominent clickable Yelp link
           const nameLink = rec.url ? `[**${rec.name}**](${rec.url})` : `**${rec.name}**`;
           message += `${index + 1}. ${nameLink}`;
           
-          // Add rating if available (from Yelp)
+          // Add rating prominently (from Yelp)
           if (rec.rating) {
             message += ` ⭐ ${rec.rating.toFixed(1)}`;
             if (rec.reviewCount) {
-              message += ` (${rec.reviewCount.toLocaleString()})`;
+              message += ` (${rec.reviewCount.toLocaleString()} reviews)`;
             }
           }
           
@@ -286,15 +294,9 @@ class ActivityPlanningService {
             message += ` • ${rec.price}`;
           }
           
-          // Add address and distance on same line if available
-          if (rec.address || rec.distance) {
-            message += `\n   📍 `;
-            if (rec.address) {
-              message += rec.address;
-            }
-            if (rec.distance) {
-              message += rec.address ? ` • ${rec.distance}` : rec.distance;
-            }
+          // Add distance if available (more useful than full address for quick decisions)
+          if (rec.distance) {
+            message += ` • ${rec.distance} away`;
           }
           
           message += `\n`;
@@ -302,15 +304,11 @@ class ActivityPlanningService {
       });
     }
 
-    // Add quick search links (much shorter)
-    if (searchResult.mapsUrl || searchResult.yelpUrl) {
-      message += `\nMore: `;
-      if (searchResult.mapsUrl) {
-        message += `[Maps](${searchResult.mapsUrl})`;
-      }
-      if (searchResult.yelpUrl) {
-        message += searchResult.mapsUrl ? ` • [Yelp](${searchResult.yelpUrl})` : `[Yelp](${searchResult.yelpUrl})`;
-      }
+    // Add Yelp link prominently if available
+    if (searchResult.yelpUrl) {
+      message += `\n[View more on Yelp](${searchResult.yelpUrl})`;
+    } else if (searchResult.mapsUrl) {
+      message += `\n[Search on Maps](${searchResult.mapsUrl})`;
     }
 
     return message;

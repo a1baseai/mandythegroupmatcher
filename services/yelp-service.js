@@ -33,11 +33,15 @@ class YelpService {
     }
 
     try {
+      // Enhanced search parameters for better accuracy
       const params = {
         term: term,
         location: location,
-        limit: options.limit || 10,
-        sort_by: options.sortBy || 'rating', // rating, distance, review_count
+        limit: options.limit || 5, // Default to 5 for more focused results
+        sort_by: options.sortBy || 'best_match', // best_match considers rating, distance, and review_count
+        // Filter for open businesses only (unless explicitly requested)
+        open_now: options.openNow !== false, // Default to true
+        // Prioritize businesses with good ratings and reviews
         ...options
       };
 
@@ -48,7 +52,7 @@ class YelpService {
         }
       });
 
-      console.log(`🍽️  [Yelp] Searching for: "${term}" in "${location}"`);
+      console.log(`🍽️  [Yelp] Searching for: "${term}" in "${location}" (limit: ${params.limit}, sort: ${params.sort_by})`);
 
       const response = await axios.get(`${this.baseUrl}/businesses/search`, {
         params: params,
@@ -59,10 +63,25 @@ class YelpService {
         timeout: 10000
       });
 
+      // Filter and enhance results
+      let businesses = response.data.businesses || [];
+      
+      // Filter out closed businesses (unless explicitly requested)
+      if (params.open_now !== false) {
+        businesses = businesses.filter(b => !b.is_closed);
+      }
+      
+      // Prioritize businesses with ratings >= 4.0 and at least 10 reviews
+      businesses = businesses.sort((a, b) => {
+        const aScore = (a.rating || 0) * (Math.min(a.review_count || 0, 100) / 100);
+        const bScore = (b.rating || 0) * (Math.min(b.review_count || 0, 100) / 100);
+        return bScore - aScore;
+      });
+
       return {
         success: true,
         total: response.data.total || 0,
-        businesses: response.data.businesses || []
+        businesses: businesses.slice(0, params.limit || 5) // Ensure we respect the limit
       };
     } catch (error) {
       console.error(`❌ [Yelp] Error searching businesses:`, error.message);
@@ -237,6 +256,7 @@ class YelpService {
     
     return businesses
       .filter(b => b && !b.is_closed) // Filter out closed businesses
+      .filter(b => (b.rating || 0) >= 3.5) // Only show businesses with decent ratings
       .slice(0, 5) // Limit to top 5
       .map(business => this.formatBusiness(business));
   }

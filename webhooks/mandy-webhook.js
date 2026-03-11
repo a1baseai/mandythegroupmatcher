@@ -163,9 +163,46 @@ class MandyWebhook extends BaseWebhook {
           console.log(`   API Response:`, sendResult ? JSON.stringify(sendResult, null, 2) : 'No response data');
           console.log('');
 
-          // Mini apps will be shared when user sends their first message (in processRequest)
-          // This creates a more natural conversation flow instead of bombarding with everything upfront
-          console.log(`📝 [Mandy] Mini apps will be shared after user's first message`);
+          // Send mini app in second message (after welcome)
+          try {
+            const welcomeMiniAppConfig = config.agents.mandy.miniApps?.welcomeMiniApp;
+            if (welcomeMiniAppConfig && welcomeMiniAppConfig.id && !welcomeMiniAppConfig.id.includes('your_')) {
+              console.log(`📱 [Mandy] Sending welcome mini app in second message...`);
+              
+              const appId = welcomeMiniAppConfig.id;
+              const appHandle = welcomeMiniAppConfig.handle || 'welcome-game';
+              const appDisplayName = welcomeMiniAppConfig.name || 'Welcome Game';
+              
+              // Create session for the welcome mini app
+              const sessionName = `${sessionId} - ${appDisplayName}`;
+              const session = await this.createMiniAppSession(chatId, appId, sessionName);
+              
+              // Create rich content block
+              const richContentBlock = {
+                type: 'micro_app_instance_card',
+                data: {
+                  appId: appId,
+                  instanceId: session.instanceId,
+                  handle: appHandle,
+                  name: appDisplayName,
+                  shareCode: session.shareCode,
+                  ...(welcomeMiniAppConfig.description && { description: welcomeMiniAppConfig.description }),
+                  ...(welcomeMiniAppConfig.iconUrl && { iconUrl: welcomeMiniAppConfig.iconUrl })
+                },
+                order: 0
+              };
+              
+              // Send second message with mini app
+              const secondMessage = `Let's get started! 🎮`;
+              await this.client.sendMessage(chatId, secondMessage, [richContentBlock]);
+              console.log(`✅ [Mandy] Welcome mini app sent successfully!`);
+            } else {
+              console.log(`⚠️  [Mandy] Welcome mini app not configured, skipping second message`);
+            }
+          } catch (miniAppError) {
+            console.error(`⚠️  [Mandy] Error sending welcome mini app:`, miniAppError.message);
+            // Don't fail the webhook if mini app fails
+          }
         
         // Mark as sent so we don't send it again on first user message
         if (!this.welcomeMessagesSent) {

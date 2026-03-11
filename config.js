@@ -138,6 +138,11 @@ module.exports = {
           id: process.env.MINI_APP_21_ID || 'xs7a9db6143badvgv018z0kgwx80t1e7',
           handle: process.env.MINI_APP_21_HANDLE || 'name-crossword',
           name: process.env.MINI_APP_21_NAME || 'Name Crossword'
+        },
+        welcomeMiniApp: {
+          id: process.env.WELCOME_MINI_APP_ID || 'xs76ck6ada5ygz39jvgh85dmnd82dvw0',
+          handle: process.env.WELCOME_MINI_APP_HANDLE || 'welcome-game',
+          name: process.env.WELCOME_MINI_APP_NAME || 'Welcome Game'
         }
       }
     }
