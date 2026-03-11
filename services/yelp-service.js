@@ -205,35 +205,42 @@ class YelpService {
    * @returns {Object} Formatted business data
    */
   formatBusiness(business) {
-    if (!business) return null;
+    if (!business || !business.name) return null;
 
-    // Ensure we have a valid Yelp business URL
-    // Yelp API returns business.url which should be the direct business page
-    let businessUrl = business.url;
-    if (!businessUrl && business.id) {
-      // Fallback: construct URL from business ID if URL is missing
-      // Yelp business URLs are typically: https://www.yelp.com/biz/{alias}
-      // But we need the alias, so we'll use the ID-based format if needed
-      businessUrl = `https://www.yelp.com/biz/${business.id}`;
+    try {
+      // Ensure we have a valid Yelp business URL
+      // Yelp API returns business.url which should be the direct business page
+      let businessUrl = business.url;
+      if (!businessUrl && business.id) {
+        // Fallback: construct URL from business ID if URL is missing
+        // Yelp business URLs are typically: https://www.yelp.com/biz/{alias}
+        // But we need the alias, so we'll use the ID-based format if needed
+        businessUrl = `https://www.yelp.com/biz/${business.id}`;
+      }
+
+      return {
+        id: business.id || '',
+        name: business.name || 'Unknown',
+        rating: business.rating || 0,
+        reviewCount: business.review_count || 0,
+        price: business.price || 'N/A',
+        phone: business.phone || '',
+        url: businessUrl || null, // Use validated URL
+        imageUrl: business.image_url || null,
+        photos: Array.isArray(business.photos) ? business.photos : [],
+        categories: Array.isArray(business.categories) 
+          ? business.categories.map(cat => cat && cat.title ? cat.title : '').filter(Boolean).join(', ')
+          : '',
+        address: this.formatAddress(business.location),
+        coordinates: business.coordinates || null,
+        distance: business.distance ? `${(business.distance / 1609.34).toFixed(1)} mi` : null, // Convert meters to miles
+        isClosed: business.is_closed || false,
+        hours: Array.isArray(business.hours) ? business.hours : []
+      };
+    } catch (error) {
+      console.error(`❌ [Yelp] Error formatting business:`, error);
+      return null;
     }
-
-    return {
-      id: business.id,
-      name: business.name,
-      rating: business.rating,
-      reviewCount: business.review_count,
-      price: business.price || 'N/A',
-      phone: business.phone,
-      url: businessUrl, // Use validated URL
-      imageUrl: business.image_url,
-      photos: business.photos || [],
-      categories: (business.categories || []).map(cat => cat.title).join(', '),
-      address: this.formatAddress(business.location),
-      coordinates: business.coordinates,
-      distance: business.distance ? `${(business.distance / 1609.34).toFixed(1)} mi` : null, // Convert meters to miles
-      isClosed: business.is_closed,
-      hours: business.hours || []
-    };
   }
 
   /**
@@ -268,7 +275,8 @@ class YelpService {
       .filter(b => b && !b.is_closed) // Filter out closed businesses
       .filter(b => (b.rating || 0) >= 3.5) // Only show businesses with decent ratings
       .slice(0, 5) // Limit to top 5
-      .map(business => this.formatBusiness(business));
+      .map(business => this.formatBusiness(business))
+      .filter(b => b !== null); // Filter out any null values from formatBusiness
   }
 }
 

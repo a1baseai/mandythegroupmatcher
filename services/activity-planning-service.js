@@ -103,37 +103,45 @@ class ActivityPlanningService {
             });
 
             if (yelpResults.success && yelpResults.businesses.length > 0) {
-              recommendations = yelpService.formatBusinesses(yelpResults.businesses).map(business => {
-                // Validate that URL is a Yelp business URL (not a search URL)
-                let businessUrl = business.url;
-                if (businessUrl && !businessUrl.includes('yelp.com/biz/')) {
-                  console.warn(`⚠️  [ActivityPlanning] Invalid Yelp URL for ${business.name}: ${businessUrl}`);
-                  // If it's not a business URL, set to null so we don't use it
-                  businessUrl = null;
-                }
-                
-                return {
-                  name: business.name,
-                  description: business.categories || 'Restaurant',
-                  address: business.address,
-                  rating: business.rating,
-                  reviewCount: business.reviewCount,
-                  price: business.price,
-                  url: businessUrl, // Use validated URL (or null if invalid)
-                  imageUrl: business.imageUrl,
-                  distance: business.distance,
-                  phone: business.phone
-                };
-              });
+              const formattedBusinesses = yelpService.formatBusinesses(yelpResults.businesses);
+              recommendations = formattedBusinesses
+                .filter(business => business && business.name) // Filter out null/undefined businesses
+                .map(business => {
+                  // Validate that URL is a Yelp business URL (not a search URL)
+                  let businessUrl = business.url;
+                  if (businessUrl && !businessUrl.includes('yelp.com/biz/')) {
+                    console.warn(`⚠️  [ActivityPlanning] Invalid Yelp URL for ${business.name || 'Unknown'}: ${businessUrl}`);
+                    // If it's not a business URL, set to null so we don't use it
+                    businessUrl = null;
+                  }
+                  
+                  return {
+                    name: business.name || 'Unknown',
+                    description: business.categories || 'Restaurant',
+                    address: business.address || '',
+                    rating: business.rating,
+                    reviewCount: business.reviewCount,
+                    price: business.price,
+                    url: businessUrl, // Use validated URL (or null if invalid)
+                    imageUrl: business.imageUrl,
+                    distance: business.distance,
+                    phone: business.phone
+                  };
+                })
+                .filter(rec => rec && rec.name); // Final safety filter
 
-              // Log URLs for debugging
-              recommendations.forEach(rec => {
-                if (rec.url) {
-                  console.log(`   ✅ ${rec.name}: ${rec.url}`);
-                } else {
-                  console.log(`   ⚠️  ${rec.name}: No valid URL`);
-                }
-              });
+              // Log URLs for debugging (with null checks)
+              if (Array.isArray(recommendations)) {
+                recommendations.forEach(rec => {
+                  if (rec && rec.name) {
+                    if (rec.url) {
+                      console.log(`   ✅ ${rec.name}: ${rec.url}`);
+                    } else {
+                      console.log(`   ⚠️  ${rec.name}: No valid URL`);
+                    }
+                  }
+                });
+              }
 
               console.log(`✅ [ActivityPlanning] Found ${recommendations.length} businesses via Yelp API`);
             }
@@ -293,47 +301,53 @@ class ActivityPlanningService {
     let message = `Top picks${searchResult.location ? ` in ${searchResult.location}` : ''}:\n\n`;
     
     // Add specific recommendations if available (prioritize Yelp results)
-    if (searchResult.recommendations && searchResult.recommendations.length > 0) {
-      searchResult.recommendations.slice(0, 5).forEach((rec, index) => {
-        if (rec.name) {
-          // Ensure URL is a valid Yelp business URL (not a generic search URL)
-          let businessUrl = rec.url;
-          if (!businessUrl || !businessUrl.includes('yelp.com/biz/')) {
-            // If URL is missing or not a direct business URL, skip the link
-            // We'll just show the name without a link rather than a broken link
-            businessUrl = null;
-          }
-          
-          // Make the name a prominent clickable Yelp link (only if we have a valid URL)
-          const nameLink = businessUrl ? `[**${rec.name}**](${businessUrl})` : `**${rec.name}**`;
-          message += `${index + 1}. ${nameLink}`;
-          
-          // Add rating prominently (from Yelp)
-          if (rec.rating) {
-            message += ` ⭐ ${rec.rating.toFixed(1)}`;
-            if (rec.reviewCount) {
-              message += ` (${rec.reviewCount.toLocaleString()} reviews)`;
+    if (searchResult.recommendations && Array.isArray(searchResult.recommendations) && searchResult.recommendations.length > 0) {
+      searchResult.recommendations
+        .filter(rec => rec && rec.name) // Filter out null/undefined recommendations
+        .slice(0, 5)
+        .forEach((rec, index) => {
+          try {
+            // Ensure URL is a valid Yelp business URL (not a generic search URL)
+            let businessUrl = rec.url;
+            if (!businessUrl || !businessUrl.includes('yelp.com/biz/')) {
+              // If URL is missing or not a direct business URL, skip the link
+              // We'll just show the name without a link rather than a broken link
+              businessUrl = null;
             }
+            
+            // Make the name a prominent clickable Yelp link (only if we have a valid URL)
+            const nameLink = businessUrl ? `[**${rec.name}**](${businessUrl})` : `**${rec.name}**`;
+            message += `${index + 1}. ${nameLink}`;
+            
+            // Add rating prominently (from Yelp)
+            if (rec.rating) {
+              message += ` ⭐ ${rec.rating.toFixed(1)}`;
+              if (rec.reviewCount) {
+                message += ` (${rec.reviewCount.toLocaleString()} reviews)`;
+              }
+            }
+            
+            // Add price if available
+            if (rec.price && rec.price !== 'N/A') {
+              message += ` • ${rec.price}`;
+            }
+            
+            // Add distance if available (more useful than full address for quick decisions)
+            if (rec.distance) {
+              message += ` • ${rec.distance} away`;
+            }
+            
+            // Add address if URL is missing (so users can still find it)
+            if (!businessUrl && rec.address) {
+              message += `\n   📍 ${rec.address}`;
+            }
+            
+            message += `\n`;
+          } catch (error) {
+            console.error(`⚠️  [ActivityPlanning] Error formatting recommendation:`, error);
+            // Skip this recommendation if there's an error
           }
-          
-          // Add price if available
-          if (rec.price && rec.price !== 'N/A') {
-            message += ` • ${rec.price}`;
-          }
-          
-          // Add distance if available (more useful than full address for quick decisions)
-          if (rec.distance) {
-            message += ` • ${rec.distance} away`;
-          }
-          
-          // Add address if URL is missing (so users can still find it)
-          if (!businessUrl && rec.address) {
-            message += `\n   📍 ${rec.address}`;
-          }
-          
-          message += `\n`;
-        }
-      });
+        });
     }
 
     // Add Yelp link prominently if available
