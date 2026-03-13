@@ -338,7 +338,7 @@ app.get('/admin', requireAdminAuth, (req, res) => {
         color: var(--text);
         font-family: var(--sans);
       }
-      .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 18px 60px; }
+      .wrap { width: 100%; max-width: none; margin: 0; padding: 22px 22px 40px; box-sizing: border-box; min-height: 100vh; }
       header { display: flex; gap: 14px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
       h1 { margin: 0; font-size: 22px; letter-spacing: .2px; }
       .sub { color: var(--muted); font-size: 13px; }
