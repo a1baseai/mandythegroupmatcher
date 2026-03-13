@@ -569,6 +569,23 @@ app.get('/admin', requireAdminAuth, (req, res) => {
         return !!(group && (group.deletedAt || group.isDeleted));
       }
 
+      function getGroupPhotoVariantUrls(group) {
+        const direct = Array.isArray(group?.groupPhotoVariantUrls) ? group.groupPhotoVariantUrls : null;
+        const raw = Array.isArray(group?.rawData?.groupPhotoVariantUrls) ? group.rawData.groupPhotoVariantUrls : null;
+        const variants = Array.isArray(group?.groupPhotoVariants)
+          ? group.groupPhotoVariants.map(v => v && v.url).filter(Boolean)
+          : null;
+        const rawVariants = Array.isArray(group?.rawData?.groupPhotoVariants)
+          ? group.rawData.groupPhotoVariants.map(v => v && v.url).filter(Boolean)
+          : null;
+
+        return (direct && direct.length ? direct
+          : raw && raw.length ? raw
+          : variants && variants.length ? variants
+          : rawVariants && rawVariants.length ? rawVariants
+          : []);
+      }
+
       async function loadGroups() {
         $('groupsStatus').textContent = 'Loading…';
         $('groupsStatus').className = 'status';
@@ -611,6 +628,7 @@ app.get('/admin', requireAdminAuth, (req, res) => {
                 ? '<button data-restore-id=\"' + escapeHtml(g.id || '') + '\" ' + (g.id ? '' : 'disabled') + '>Restore</button>'
                 : '<button class=\"danger\" data-archive-id=\"' + escapeHtml(g.id || '') + '\" ' + (g.id ? '' : 'disabled') + '>Archive</button>'
               }
+              <button data-photos-id="\${escapeHtml(g.id || '')}" \${g.id ? '' : 'disabled'}>Photos</button>
             </td>
             <td>
               <details>
@@ -651,6 +669,23 @@ app.get('/admin', requireAdminAuth, (req, res) => {
             if (r.ok) {
               await loadGroups();
             }
+          });
+        }
+
+        // Wire "Photos" buttons after rendering
+        for (const btn of tbody.querySelectorAll('button[data-photos-id]')) {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-photos-id');
+            if (!id) return;
+            const group = groups.find(g => String(g?.id || '') === String(id));
+            const name = group ? deriveName(group) : id;
+            const urls = group ? getGroupPhotoVariantUrls(group) : [];
+            setLastResponse('groupPhotoVariantUrls', {
+              groupId: id,
+              groupName: name,
+              count: urls.length,
+              urls
+            });
           });
         }
 
