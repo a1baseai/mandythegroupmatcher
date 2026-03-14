@@ -168,6 +168,18 @@ function getAllProfiles() {
 }
 
 /**
+ * Get active group profiles (excludes archived/deleted groups)
+ * @returns {Array} Array of active group profiles
+ */
+function getActiveProfiles() {
+  const allProfiles = getAllProfiles();
+  return allProfiles.filter(group => {
+    // Exclude archived/deleted groups
+    return !(group.deletedAt || group.isDeleted);
+  });
+}
+
+/**
  * Get a profile by group name
  * @param {string} groupName - Group name
  * @returns {Object|null} Profile or null
@@ -543,6 +555,7 @@ module.exports = {
   groupNameExists,
   saveGroupProfile,
   getAllProfiles,
+  getActiveProfiles,
   getProfileByGroupName,
   getProfileByChatId,
   getProfileByCompositeKey,
