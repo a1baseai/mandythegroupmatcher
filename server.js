@@ -1161,18 +1161,43 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
     console.log('📥 [Groups] Received group data from main server');
     console.log('   Data:', JSON.stringify(req.body, null, 2));
     
-    // Log photo fields specifically to debug
+    // Log photo fields specifically to debug (matching a1zapmaker payload structure)
     const groupData = req.body;
     const photoFields = {
-      groupPhotoUrl: groupData.groupPhotoUrl,
-      groupPhotoVariantUrls: groupData.groupPhotoVariantUrls,
-      groupPhotoVariants: groupData.groupPhotoVariants,
-      photoUrl: groupData.photoUrl,
-      photos: groupData.photos,
-      'rawData.groupPhotoUrl': groupData.rawData?.groupPhotoUrl,
-      'rawData.groupPhotoVariantUrls': groupData.rawData?.groupPhotoVariantUrls,
+      // Primary photo fields (in priority order)
+      groupPhotoVariantUrls: groupData.groupPhotoVariantUrls ? 
+        `${Array.isArray(groupData.groupPhotoVariantUrls) ? groupData.groupPhotoVariantUrls.length : 1} variant(s)` : 
+        null,
+      groupPhotoVariants: groupData.groupPhotoVariants ? 
+        `${Array.isArray(groupData.groupPhotoVariants) ? groupData.groupPhotoVariants.length : 1} variant object(s)` : 
+        null,
+      groupPhotoUrl: groupData.groupPhotoUrl || null,
+      // Alternative field names
+      photoUrl: groupData.photoUrl || null,
+      photos: groupData.photos ? 
+        `${Array.isArray(groupData.photos) ? groupData.photos.length : 1} photo(s)` : 
+        null,
+      // Check rawData if present
+      'rawData.groupPhotoUrl': groupData.rawData?.groupPhotoUrl || null,
+      'rawData.groupPhotoVariantUrls': groupData.rawData?.groupPhotoVariantUrls ? 
+        `${Array.isArray(groupData.rawData.groupPhotoVariantUrls) ? groupData.rawData.groupPhotoVariantUrls.length : 1} variant(s)` : 
+        null,
+      'rawData.groupPhotoVariants': groupData.rawData?.groupPhotoVariants ? 
+        `${Array.isArray(groupData.rawData.groupPhotoVariants) ? groupData.rawData.groupPhotoVariants.length : 1} variant object(s)` : 
+        null,
     };
-    console.log('📸 [Groups] Photo fields detected:', JSON.stringify(photoFields, null, 2));
+    console.log('📸 [Groups] Photo fields detected from a1zapmaker:', JSON.stringify(photoFields, null, 2));
+    
+    // Log first variant URL if available (this is what will be used in emails)
+    if (groupData.groupPhotoVariantUrls && Array.isArray(groupData.groupPhotoVariantUrls) && groupData.groupPhotoVariantUrls.length > 0) {
+      console.log(`📸 [Groups] Will use variant URL[0] for emails: ${groupData.groupPhotoVariantUrls[0]}`);
+    } else if (groupData.groupPhotoVariants && Array.isArray(groupData.groupPhotoVariants) && groupData.groupPhotoVariants.length > 0 && groupData.groupPhotoVariants[0]?.url) {
+      console.log(`📸 [Groups] Will use variant object[0].url for emails: ${groupData.groupPhotoVariants[0].url}`);
+    } else if (groupData.groupPhotoUrl) {
+      console.log(`📸 [Groups] Will use original photo URL for emails: ${groupData.groupPhotoUrl}`);
+    } else {
+      console.warn('⚠️  [Groups] No photo URL found - emails will use placeholder');
+    }
     
     const groupProfileStorage = require('./services/group-profile-storage');
     
@@ -1204,16 +1229,14 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
         question9: groupData.romanEmpire || groupData.roman_empire || groupData.answers?.question9,
         question10: groupData.sideQuest || groupData.side_quest || groupData.answers?.question10
       },
-      // Store raw data for reference
+      // Store raw data for reference (contains all original fields from a1zapmaker)
       rawData: groupData,
       // Store photos if provided (extract from groupData - a1zapmaker sends these)
-      // Accept multiple field name variations from a1zapmaker
-      groupPhotoUrl: groupData.groupPhotoUrl || 
-                    groupData.group_photo_url || 
-                    groupData.photoUrl || 
-                    groupData.photo_url ||
-                    groupData.groupPhoto ||
-                    null,
+      // Priority order matches a1zapmaker payload structure:
+      // 1. groupPhotoVariantUrls (PREFERRED - Array of variant URL strings)
+      // 2. groupPhotoVariants (SECOND CHOICE - Array of variant objects with .url)
+      // 3. groupPhotoUrl (FALLBACK - Original photo URL)
+      // Accept multiple field name variations for backwards compatibility
       groupPhotoVariantUrls: groupData.groupPhotoVariantUrls || 
                              groupData.group_photo_variant_urls || 
                              groupData.photoVariantUrls ||
@@ -1225,6 +1248,12 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
                          groupData.photoVariants ||
                          groupData.photo_variants ||
                          null,
+      groupPhotoUrl: groupData.groupPhotoUrl || 
+                    groupData.group_photo_url || 
+                    groupData.photoUrl || 
+                    groupData.photo_url ||
+                    groupData.groupPhoto ||
+                    null,
       // Store vibes/preferences if provided (accept multiple field names)
       vibes: groupData.vibes || groupData.vibeTags || groupData.preferences || null,
       lookingFor: groupData.lookingFor || groupData.looking_for || null,

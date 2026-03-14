@@ -188,60 +188,103 @@ function escapeHtml(text) {
  * @param {Object} group - Group object with photo data
  * @returns {string|null} Photo URL or null if none available
  */
+/**
+ * Extract the best photo URL from a group object following a1zapmaker's photo priority:
+ * 1. groupPhotoVariantUrls[0] (PREFERRED - AI-generated variant URLs array)
+ * 2. groupPhotoVariants[0].url (SECOND CHOICE - variant objects array)
+ * 3. groupPhotoUrl (FALLBACK - original photo)
+ * 
+ * Checks both top-level and rawData locations.
+ * @param {Object} group - Group object from database
+ * @returns {string|null} - Photo URL or null if not found
+ */
 function getBestPhotoUrl(group) {
   if (!group) {
     console.warn('[getBestPhotoUrl] Group is null or undefined');
     return null;
   }
   
-  // Try AI-generated variant URLs first (top level)
+  const groupName = group.groupName || group.name || 'unknown';
+  
+  // PRIORITY 1: groupPhotoVariantUrls[0] (PREFERRED - Array of variant URL strings)
+  // Check top level first
   if (group.groupPhotoVariantUrls && Array.isArray(group.groupPhotoVariantUrls) && group.groupPhotoVariantUrls.length > 0) {
     const url = group.groupPhotoVariantUrls[0];
-    console.log(`[getBestPhotoUrl] Found variant URL (top level): ${url}`);
-    return url;
+    if (isValidUrl(url)) {
+      console.log(`[getBestPhotoUrl] ✅ Found variant URL (top level) for ${groupName}: ${url}`);
+      return url;
+    }
   }
   
-  // Try variant URLs in rawData
+  // Check rawData
   if (group.rawData?.groupPhotoVariantUrls && Array.isArray(group.rawData.groupPhotoVariantUrls) && group.rawData.groupPhotoVariantUrls.length > 0) {
     const url = group.rawData.groupPhotoVariantUrls[0];
-    console.log(`[getBestPhotoUrl] Found variant URL (rawData): ${url}`);
-    return url;
+    if (isValidUrl(url)) {
+      console.log(`[getBestPhotoUrl] ✅ Found variant URL (rawData) for ${groupName}: ${url}`);
+      return url;
+    }
   }
   
-  // Try variant objects (top level)
+  // PRIORITY 2: groupPhotoVariants[0].url (SECOND CHOICE - Array of variant objects)
+  // Check top level
   if (group.groupPhotoVariants && Array.isArray(group.groupPhotoVariants) && group.groupPhotoVariants.length > 0) {
     const firstVariant = group.groupPhotoVariants[0];
-    if (firstVariant && firstVariant.url) {
-      console.log(`[getBestPhotoUrl] Found variant object URL (top level): ${firstVariant.url}`);
+    if (firstVariant && firstVariant.url && isValidUrl(firstVariant.url)) {
+      console.log(`[getBestPhotoUrl] ✅ Found variant object URL (top level) for ${groupName}: ${firstVariant.url}`);
       return firstVariant.url;
     }
   }
   
-  // Try variant objects in rawData
+  // Check rawData
   if (group.rawData?.groupPhotoVariants && Array.isArray(group.rawData.groupPhotoVariants) && group.rawData.groupPhotoVariants.length > 0) {
     const firstVariant = group.rawData.groupPhotoVariants[0];
-    if (firstVariant && firstVariant.url) {
-      console.log(`[getBestPhotoUrl] Found variant object URL (rawData): ${firstVariant.url}`);
+    if (firstVariant && firstVariant.url && isValidUrl(firstVariant.url)) {
+      console.log(`[getBestPhotoUrl] ✅ Found variant object URL (rawData) for ${groupName}: ${firstVariant.url}`);
       return firstVariant.url;
     }
   }
   
-  // Fallback to original group photo (top level)
-  if (group.groupPhotoUrl) {
-    console.log(`[getBestPhotoUrl] Using original photo URL (top level): ${group.groupPhotoUrl}`);
+  // PRIORITY 3: groupPhotoUrl (FALLBACK - Original photo)
+  // Check top level
+  if (group.groupPhotoUrl && isValidUrl(group.groupPhotoUrl)) {
+    console.log(`[getBestPhotoUrl] ✅ Using original photo URL (top level) for ${groupName}: ${group.groupPhotoUrl}`);
     return group.groupPhotoUrl;
   }
   
-  // Fallback to original group photo in rawData
-  if (group.rawData?.groupPhotoUrl) {
-    console.log(`[getBestPhotoUrl] Using original photo URL (rawData): ${group.rawData.groupPhotoUrl}`);
+  // Check rawData
+  if (group.rawData?.groupPhotoUrl && isValidUrl(group.rawData.groupPhotoUrl)) {
+    console.log(`[getBestPhotoUrl] ✅ Using original photo URL (rawData) for ${groupName}: ${group.rawData.groupPhotoUrl}`);
     return group.rawData.groupPhotoUrl;
   }
   
-  console.warn(`[getBestPhotoUrl] No photo found for group: ${group.groupName || 'unknown'}`);
-  console.warn(`[getBestPhotoUrl] Available fields:`, Object.keys(group || {}));
+  // Also check alternative field names (for backwards compatibility)
+  const altFields = [
+    'group_photo_url', 'photoUrl', 'photo_url', 'groupPhoto',
+    'group_photo_variant_urls', 'photoVariantUrls', 'photos'
+  ];
+  
+  for (const field of altFields) {
+    if (group[field]) {
+      const url = Array.isArray(group[field]) ? group[field][0] : group[field];
+      if (isValidUrl(url)) {
+        console.log(`[getBestPhotoUrl] ✅ Found photo via alternative field '${field}' for ${groupName}: ${url}`);
+        return url;
+      }
+    }
+    if (group.rawData?.[field]) {
+      const url = Array.isArray(group.rawData[field]) ? group.rawData[field][0] : group.rawData[field];
+      if (isValidUrl(url)) {
+        console.log(`[getBestPhotoUrl] ✅ Found photo via alternative field 'rawData.${field}' for ${groupName}: ${url}`);
+        return url;
+      }
+    }
+  }
+  
+  // No photo found
+  console.warn(`[getBestPhotoUrl] ❌ No valid photo found for group: ${groupName}`);
+  console.warn(`[getBestPhotoUrl] Available top-level fields:`, Object.keys(group || {}).filter(k => k.includes('photo') || k.includes('Photo')));
   if (group.rawData) {
-    console.warn(`[getBestPhotoUrl] rawData fields:`, Object.keys(group.rawData || {}));
+    console.warn(`[getBestPhotoUrl] Available rawData photo fields:`, Object.keys(group.rawData || {}).filter(k => k.includes('photo') || k.includes('Photo')));
   }
   return null;
 }
