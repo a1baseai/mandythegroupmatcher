@@ -1265,9 +1265,9 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
       // 1. groupPhotoVariantUrls (PREFERRED - Array of variant URL strings)
       // 2. groupPhotoVariants (SECOND CHOICE - Array of variant objects with .url)
       // 3. groupPhotoUrl (FALLBACK - Original photo URL)
-      // Use helper function to extract from any location
+      // Use helper function to extract from any location, with fallbacks
       groupPhotoVariantUrls: extractPhotoField(groupData, 'groupPhotoVariantUrls', true) || 
-                             (Array.isArray(groupData.photos) ? groupData.photos : null) ||
+                             (Array.isArray(groupData.photos) && groupData.photos.length > 0 ? groupData.photos : null) ||
                              null,
       groupPhotoVariants: extractPhotoField(groupData, 'groupPhotoVariants', true) || null,
       groupPhotoUrl: extractPhotoField(groupData, 'groupPhotoUrl', false) || null,
