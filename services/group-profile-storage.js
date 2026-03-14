@@ -423,6 +423,73 @@ function getMatchedGroupsForChat(chatId) {
 }
 
 /**
+ * Soft delete a group profile by ID (marks as deleted, doesn't remove)
+ * @param {string} id - Group profile ID
+ * @returns {Object} { success: boolean, message?: string }
+ */
+function softDeleteGroupProfileById(id) {
+  if (!id) {
+    return { success: false, message: 'Group ID is required' };
+  }
+
+  const profiles = loadProfiles();
+  const groupIndex = profiles.groups.findIndex(g => g.id === id);
+  
+  if (groupIndex === -1) {
+    return { success: false, message: 'Group not found' };
+  }
+
+  // Mark as deleted (soft delete)
+  profiles.groups[groupIndex] = {
+    ...profiles.groups[groupIndex],
+    deletedAt: new Date().toISOString(),
+    isDeleted: true,
+    updatedAt: new Date().toISOString()
+  };
+
+  saveProfiles(profiles);
+  console.log(`✅ Soft deleted group profile: ${id}`);
+  return { 
+    success: true, 
+    message: 'Group deleted successfully',
+    group: profiles.groups[groupIndex]
+  };
+}
+
+/**
+ * Restore a soft-deleted group profile by ID
+ * @param {string} id - Group profile ID
+ * @returns {Object} { success: boolean, message?: string }
+ */
+function restoreGroupProfileById(id) {
+  if (!id) {
+    return { success: false, message: 'Group ID is required' };
+  }
+
+  const profiles = loadProfiles();
+  const groupIndex = profiles.groups.findIndex(g => g.id === id);
+  
+  if (groupIndex === -1) {
+    return { success: false, message: 'Group not found' };
+  }
+
+  // Remove deleted flags
+  const { deletedAt, isDeleted, ...rest } = profiles.groups[groupIndex];
+  profiles.groups[groupIndex] = {
+    ...rest,
+    updatedAt: new Date().toISOString()
+  };
+
+  saveProfiles(profiles);
+  console.log(`✅ Restored group profile: ${id}`);
+  return { 
+    success: true, 
+    message: 'Group restored successfully',
+    group: profiles.groups[groupIndex]
+  };
+}
+
+/**
  * Get statistics about stored profiles
  * @returns {Object} Statistics
  */
@@ -564,6 +631,8 @@ module.exports = {
   getAllMatches,
   getMatchesForGroup,
   getMatchedGroupsForChat,
+  softDeleteGroupProfileById,
+  restoreGroupProfileById,
   getStats,
   getGroupResponseState,
   setGroupResponseState,
