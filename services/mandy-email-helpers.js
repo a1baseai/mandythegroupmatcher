@@ -203,6 +203,25 @@ function getBestPhotoUrl(group) {
   
   const groupName = group.groupName || group.name || 'unknown';
   
+  // Log what we're looking at for debugging
+  console.log(`[getBestPhotoUrl] 🔍 Searching for photos for group: ${groupName}`);
+  console.log(`[getBestPhotoUrl] Top-level photo fields:`, {
+    hasGroupPhotoVariantUrls: !!group.groupPhotoVariantUrls,
+    variantUrlsCount: Array.isArray(group.groupPhotoVariantUrls) ? group.groupPhotoVariantUrls.length : 0,
+    hasGroupPhotoVariants: !!group.groupPhotoVariants,
+    variantsCount: Array.isArray(group.groupPhotoVariants) ? group.groupPhotoVariants.length : 0,
+    hasGroupPhotoUrl: !!group.groupPhotoUrl,
+  });
+  if (group.rawData) {
+    console.log(`[getBestPhotoUrl] rawData photo fields:`, {
+      hasGroupPhotoVariantUrls: !!group.rawData.groupPhotoVariantUrls,
+      variantUrlsCount: Array.isArray(group.rawData.groupPhotoVariantUrls) ? group.rawData.groupPhotoVariantUrls.length : 0,
+      hasGroupPhotoVariants: !!group.rawData.groupPhotoVariants,
+      variantsCount: Array.isArray(group.rawData.groupPhotoVariants) ? group.rawData.groupPhotoVariants.length : 0,
+      hasGroupPhotoUrl: !!group.rawData.groupPhotoUrl,
+    });
+  }
+  
   // PRIORITY 1: groupPhotoVariantUrls (PREFERRED - Array of variant URL strings)
   // Randomly select from available variants
   // Check top level first
@@ -211,8 +230,10 @@ function getBestPhotoUrl(group) {
     if (validUrls.length > 0) {
       const randomIndex = Math.floor(Math.random() * validUrls.length);
       const url = validUrls[randomIndex];
-      console.log(`[getBestPhotoUrl] ✅ Randomly selected variant URL ${randomIndex + 1}/${validUrls.length} (top level) for ${groupName}: ${url}`);
+      console.log(`[getBestPhotoUrl] ✅ Randomly selected AI variant URL ${randomIndex + 1}/${validUrls.length} (top level) for ${groupName}: ${url}`);
       return url;
+    } else {
+      console.warn(`[getBestPhotoUrl] ⚠️  groupPhotoVariantUrls array exists but contains no valid URLs for ${groupName}`);
     }
   }
   
@@ -222,8 +243,10 @@ function getBestPhotoUrl(group) {
     if (validUrls.length > 0) {
       const randomIndex = Math.floor(Math.random() * validUrls.length);
       const url = validUrls[randomIndex];
-      console.log(`[getBestPhotoUrl] ✅ Randomly selected variant URL ${randomIndex + 1}/${validUrls.length} (rawData) for ${groupName}: ${url}`);
+      console.log(`[getBestPhotoUrl] ✅ Randomly selected AI variant URL ${randomIndex + 1}/${validUrls.length} (rawData) for ${groupName}: ${url}`);
       return url;
+    } else {
+      console.warn(`[getBestPhotoUrl] ⚠️  rawData.groupPhotoVariantUrls array exists but contains no valid URLs for ${groupName}`);
     }
   }
   
@@ -235,8 +258,10 @@ function getBestPhotoUrl(group) {
     if (validVariants.length > 0) {
       const randomIndex = Math.floor(Math.random() * validVariants.length);
       const selectedVariant = validVariants[randomIndex];
-      console.log(`[getBestPhotoUrl] ✅ Randomly selected variant object ${randomIndex + 1}/${validVariants.length} (top level) for ${groupName}: ${selectedVariant.url}`);
+      console.log(`[getBestPhotoUrl] ✅ Randomly selected AI variant object ${randomIndex + 1}/${validVariants.length} (top level) for ${groupName}: ${selectedVariant.url}`);
       return selectedVariant.url;
+    } else {
+      console.warn(`[getBestPhotoUrl] ⚠️  groupPhotoVariants array exists but contains no valid variant objects for ${groupName}`);
     }
   }
   
@@ -246,21 +271,23 @@ function getBestPhotoUrl(group) {
     if (validVariants.length > 0) {
       const randomIndex = Math.floor(Math.random() * validVariants.length);
       const selectedVariant = validVariants[randomIndex];
-      console.log(`[getBestPhotoUrl] ✅ Randomly selected variant object ${randomIndex + 1}/${validVariants.length} (rawData) for ${groupName}: ${selectedVariant.url}`);
+      console.log(`[getBestPhotoUrl] ✅ Randomly selected AI variant object ${randomIndex + 1}/${validVariants.length} (rawData) for ${groupName}: ${selectedVariant.url}`);
       return selectedVariant.url;
+    } else {
+      console.warn(`[getBestPhotoUrl] ⚠️  rawData.groupPhotoVariants array exists but contains no valid variant objects for ${groupName}`);
     }
   }
   
-  // PRIORITY 3: groupPhotoUrl (FALLBACK - Original photo)
+  // PRIORITY 3: groupPhotoUrl (FALLBACK - Original photo - ONLY if no variants found)
   // Check top level
   if (group.groupPhotoUrl && isValidUrl(group.groupPhotoUrl)) {
-    console.log(`[getBestPhotoUrl] ✅ Using original photo URL (top level) for ${groupName}: ${group.groupPhotoUrl}`);
+    console.warn(`[getBestPhotoUrl] ⚠️  FALLBACK: Using original photo URL (top level) for ${groupName} - no AI variants found: ${group.groupPhotoUrl}`);
     return group.groupPhotoUrl;
   }
   
   // Check rawData
   if (group.rawData?.groupPhotoUrl && isValidUrl(group.rawData.groupPhotoUrl)) {
-    console.log(`[getBestPhotoUrl] ✅ Using original photo URL (rawData) for ${groupName}: ${group.rawData.groupPhotoUrl}`);
+    console.warn(`[getBestPhotoUrl] ⚠️  FALLBACK: Using original photo URL (rawData) for ${groupName} - no AI variants found: ${group.rawData.groupPhotoUrl}`);
     return group.rawData.groupPhotoUrl;
   }
   
