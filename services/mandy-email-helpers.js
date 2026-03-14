@@ -26,11 +26,28 @@ function generateMatchEmailHtml({
   groupPhotoUrl,
   matchedGroupPhotoUrl,
   matchedGroupDescription = '',
+  shareLink = null,
+  compatibilityScore = null,
 }) {
   // Default fallback if photos are missing
   const defaultPhotoUrl = 'https://via.placeholder.com/400x300?text=Group+Photo';
-  const yourPhoto = groupPhotoUrl || defaultPhotoUrl;
-  const theirPhoto = matchedGroupPhotoUrl || defaultPhotoUrl;
+  
+  // Ensure photo URLs are valid (don't escape URLs, only escape display text)
+  // URLs must be strings and start with http:// or https://
+  const isValidUrl = (url) => {
+    return url && typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'));
+  };
+  
+  const yourPhotoUrl = isValidUrl(groupPhotoUrl) ? groupPhotoUrl : defaultPhotoUrl;
+  const theirPhotoUrl = isValidUrl(matchedGroupPhotoUrl) ? matchedGroupPhotoUrl : defaultPhotoUrl;
+  
+  // Log for debugging
+  if (!isValidUrl(groupPhotoUrl)) {
+    console.warn(`[generateMatchEmailHtml] Invalid or missing photo URL for ${groupName}:`, groupPhotoUrl);
+  }
+  if (!isValidUrl(matchedGroupPhotoUrl)) {
+    console.warn(`[generateMatchEmailHtml] Invalid or missing photo URL for ${matchedGroupName}:`, matchedGroupPhotoUrl);
+  }
 
   return `
     <!DOCTYPE html>
@@ -81,8 +98,8 @@ function generateMatchEmailHtml({
                   </td>
                 </tr>
                 <tr>
-                  <td align="center">
-                    <img src="${escapeHtml(yourPhoto)}" alt="Your group" width="280" height="280" style="display: block; width: 280px; max-width: 100%; height: auto; border: 0; outline: none; text-decoration: none;" />
+                  <td align="center" style="padding: 10px; background-color: #f9f9f9; border-radius: 8px;">
+                    <img src="${yourPhotoUrl}" alt="Your group" width="280" height="280" style="display: block; width: 280px; max-width: 100%; height: auto; border: 0; outline: none; text-decoration: none; border-radius: 8px; -ms-interpolation-mode: bicubic;" />
                   </td>
                 </tr>
               </table>
@@ -95,8 +112,8 @@ function generateMatchEmailHtml({
                   </td>
                 </tr>
                 <tr>
-                  <td align="center">
-                    <img src="${escapeHtml(theirPhoto)}" alt="${escapeHtml(matchedGroupName)}" width="280" height="280" style="display: block; width: 280px; max-width: 100%; height: auto; border: 0; outline: none; text-decoration: none;" />
+                  <td align="center" style="padding: 10px; background-color: #f9f9f9; border-radius: 8px;">
+                    <img src="${theirPhotoUrl}" alt="${escapeHtml(matchedGroupName)}" width="280" height="280" style="display: block; width: 280px; max-width: 100%; height: auto; border: 0; outline: none; text-decoration: none; border-radius: 8px; -ms-interpolation-mode: bicubic;" />
                   </td>
                 </tr>
               </table>
@@ -104,10 +121,35 @@ function generateMatchEmailHtml({
           </tr>
         </table>
         
-        <h2 style="color: #A51C30; font-size: 22px; margin: 40px 0 20px 0; font-family: Arial, sans-serif;">Next Steps</h2>
+        ${compatibilityScore !== null && compatibilityScore !== 'N/A' ? `
+        <div style="background-color: #f9f9f9; border-left: 4px solid #A51C30; padding: 15px; margin: 30px 0; border-radius: 4px;">
+          <p style="font-size: 16px; line-height: 1.6; color: #333333; margin: 0; font-family: Arial, sans-serif;">
+            <strong>Compatibility Score: ${escapeHtml(String(compatibilityScore))}%</strong>
+          </p>
+        </div>
+        ` : ''}
+        
+        <h2 style="color: #A51C30; font-size: 22px; margin: 40px 0 20px 0; font-family: Arial, sans-serif;">${shareLink ? 'Join Your Group Chat' : 'Next Steps'}</h2>
+        ${shareLink ? `
+        <p style="font-size: 16px; line-height: 1.6; color: #333333; margin: 0 0 30px 0; font-family: Arial, sans-serif;">
+          Click the link below to join your group chat with <strong>${escapeHtml(matchedGroupName)}</strong> and start planning together!
+        </p>
+        <p style="text-align: center; margin: 30px 0;">
+          <a href="${shareLink}" style="background-color: #A51C30; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; font-size: 16px;">
+            Join Group Chat →
+          </a>
+        </p>
+        <p style="font-size: 14px; color: #666666; margin: 20px 0 30px 0; text-align: center; font-family: Arial, sans-serif;">
+          Or copy this link: <a href="${shareLink}" style="color: #A51C30; text-decoration: underline;">${shareLink}</a>
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #333333; margin: 0 0 30px 0; font-family: Arial, sans-serif;">
+          Once you join the chat, Mandy will be there to help you break the ice and plan activities together!
+        </p>
+        ` : `
         <p style="font-size: 16px; line-height: 1.6; color: #333333; margin: 0 0 30px 0; font-family: Arial, sans-serif;">
           We'll send you both an email with contact information and suggested meetup ideas!
         </p>
+        `}
         
         <p style="font-size: 16px; line-height: 1.6; color: #333333; margin: 40px 0 0 0; font-family: Arial, sans-serif;">
           Best,<br>
@@ -198,6 +240,8 @@ async function notifyGroupOfMatch({
   groupPhotoUrl,
   matchedGroupPhotoUrl,
   matchedGroupDescription = '',
+  shareLink = null,
+  compatibilityScore = null,
   sendEmailFn = null, // If provided, use this instead of default sendEmailFromMandy
 }) {
   // Log photo URLs for debugging
@@ -206,6 +250,8 @@ async function notifyGroupOfMatch({
     groupPhotoUrl,
     matchedGroupName,
     matchedGroupPhotoUrl,
+    shareLink,
+    compatibilityScore,
   });
 
   // Warn if photos are missing
@@ -223,10 +269,14 @@ async function notifyGroupOfMatch({
     groupPhotoUrl,
     matchedGroupPhotoUrl,
     matchedGroupDescription,
+    shareLink,
+    compatibilityScore,
   });
   
   // Plain text fallback
-  const bodyText = `Great news, ${groupName}!\n\nYou've been matched with ${matchedGroupName}!\n\nCheck your dashboard for details.`;
+  const bodyText = shareLink 
+    ? `Great news, ${groupName}!\n\nYou've been matched with ${matchedGroupName}!\n\n${compatibilityScore !== null && compatibilityScore !== 'N/A' ? `Compatibility Score: ${compatibilityScore}%\n\n` : ''}Join your group chat: ${shareLink}\n\nOnce you join, Mandy will help you break the ice and plan activities together!\n\nBest,\nMandy the Matchmaker`
+    : `Great news, ${groupName}!\n\nYou've been matched with ${matchedGroupName}!\n\nCheck your dashboard for details.`;
 
   // Use provided function or default
   if (sendEmailFn) {
@@ -288,9 +338,11 @@ function validateGroupPhotos(group, label = 'Group') {
  * @param {Object} group1 - First group object
  * @param {Object} group2 - Second group object (matched with group1)
  * @param {Function} [sendEmailFn] - Optional custom email sending function
+ * @param {string} [shareLink] - Optional group chat share link
+ * @param {number|string} [compatibilityScore] - Optional compatibility score
  * @returns {Promise<Array>} Array of results for both emails
  */
-async function notifyBothGroupsOfMatch(group1, group2, sendEmailFn = null) {
+async function notifyBothGroupsOfMatch(group1, group2, sendEmailFn = null, shareLink = null, compatibilityScore = null) {
   // Validate and extract photos with detailed logging
   console.log('[notifyBothGroupsOfMatch] Starting match email process...');
   
@@ -318,6 +370,8 @@ async function notifyBothGroupsOfMatch(group1, group2, sendEmailFn = null) {
       groupPhotoUrl: group1Photo,
       matchedGroupPhotoUrl: group2Photo,
       matchedGroupDescription: group2.tagline || group2.additionalInfo || '',
+      shareLink,
+      compatibilityScore,
       sendEmailFn,
     }),
     notifyGroupOfMatch({
@@ -327,6 +381,8 @@ async function notifyBothGroupsOfMatch(group1, group2, sendEmailFn = null) {
       groupPhotoUrl: group2Photo,
       matchedGroupPhotoUrl: group1Photo,
       matchedGroupDescription: group1.tagline || group1.additionalInfo || '',
+      shareLink,
+      compatibilityScore,
       sendEmailFn,
     }),
   ]);

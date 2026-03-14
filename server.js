@@ -866,12 +866,17 @@ const handleMatchRequest = async (req, res) => {
         : `${(process.env.A1ZAP_WEBAPP_URL || 'https://www.a1zap.com').replace(/\/$/, '')}/harvard/mandy`;
       
       // Send emails with photos using helper functions
+      const compatibilityScore = bestMatch.compatibility?.percentage || 
+                                 (bestMatch.compatibility?.score ? bestMatch.compatibility.score * 100 : null);
+      
       const emailResults = await notifyBothGroupsOfMatch(
         bestMatch.group1,
         bestMatch.group2,
         async (email, subject, html, text) => {
           return await emailService.sendEmail(email, subject, html, text);
-        }
+        },
+        shareLink,
+        compatibilityScore
       );
       
       emailStatus = {
