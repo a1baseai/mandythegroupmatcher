@@ -15,25 +15,6 @@ const PROFILES_FILE = path.join(DATA_DIR, 'group-profiles.json');
 const STATE_FILE = path.join(DATA_DIR, 'interview-state.json');
 const MATCHES_FILE = path.join(DATA_DIR, 'matches.json');
 
-function safeLower(value) {
-  return String(value ?? '').toLowerCase();
-}
-
-function normalizeGroupName(profile) {
-  if (!profile || typeof profile !== 'object') return profile;
-  const groupName =
-    profile.groupName ||
-    profile.name ||
-    profile.group_name ||
-    profile.answers?.question1 ||
-    profile.answers?.q1;
-
-  if (groupName && !profile.groupName) {
-    return { ...profile, groupName };
-  }
-  return profile;
-}
-
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -149,9 +130,8 @@ function clearInterviewState(chatId) {
  */
 function groupNameExists(groupName) {
   const profiles = loadProfiles();
-  if (!groupName) return false;
   return profiles.groups.some(g => 
-    g.groupName && safeLower(g.groupName) === safeLower(groupName)
+    g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
   );
 }
 
@@ -184,19 +164,7 @@ function saveGroupProfile(profile) {
  */
 function getAllProfiles() {
   const profiles = loadProfiles();
-  return (profiles.groups || []).map(normalizeGroupName);
-}
-
-function isSoftDeleted(profile) {
-  return !!(profile && (profile.deletedAt || profile.isDeleted));
-}
-
-/**
- * Get active (non-deleted) group profiles
- * @returns {Array} Array of active group profiles
- */
-function getActiveProfiles() {
-  return getAllProfiles().filter(p => !isSoftDeleted(p));
+  return profiles.groups || [];
 }
 
 /**
@@ -206,9 +174,8 @@ function getActiveProfiles() {
  */
 function getProfileByGroupName(groupName) {
   const profiles = loadProfiles();
-  if (!groupName) return null;
   return profiles.groups.find(g => 
-    g.groupName && safeLower(g.groupName) === safeLower(groupName)
+    g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
   ) || null;
 }
 
@@ -223,91 +190,6 @@ function getProfileByChatId(chatId) {
 }
 
 /**
- * Soft delete (archive) a group profile by ID (and prune related stored matches/state)
- * @param {string} id - Group profile ID
- * @returns {{ success: boolean, archived?: Object, removedMatches?: number, error?: string }}
- */
-function softDeleteGroupProfileById(id) {
-  if (!id) return { success: false, error: 'Missing id' };
-
-  const profiles = loadProfiles();
-  const idx = (profiles.groups || []).findIndex(g => g && g.id === id);
-  if (idx === -1) return { success: false, error: `Group not found: ${id}` };
-
-  const existing = profiles.groups[idx];
-  if (existing && (existing.deletedAt || existing.isDeleted)) {
-    return { success: true, archived: existing, removedMatches: 0 };
-  }
-
-  profiles.groups[idx] = {
-    ...existing,
-    isDeleted: true,
-    deletedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  saveProfiles(profiles);
-
-  // Best-effort: clear interview state for this chat if present
-  try {
-    if (profiles.groups[idx]?.chatId) {
-      clearInterviewState(profiles.groups[idx].chatId);
-    }
-  } catch (e) {
-    // ignore
-  }
-
-  // Best-effort cleanup: remove matches that reference this group's id or name
-  let removedMatches = 0;
-  try {
-    const matchesData = loadMatches();
-    const archived = profiles.groups[idx];
-    const archivedName = archived?.groupName || archived?.name || archived?.group_name || null;
-    const before = (matchesData.matches || []).length;
-    matchesData.matches = (matchesData.matches || []).filter(m => {
-      if (!m) return false;
-      if (id && (m.group1Id === id || m.group2Id === id)) return false;
-      if (archivedName && (safeLower(m.group1Name) === safeLower(archivedName) || safeLower(m.group2Name) === safeLower(archivedName))) return false;
-      return true;
-    });
-    removedMatches = before - matchesData.matches.length;
-    saveMatches(matchesData);
-  } catch (e) {
-    // ignore
-  }
-
-  const archived = profiles.groups[idx];
-  console.log(`🗃️  Archived group profile: ${archived?.groupName || archived?.name || id} (ID: ${id})`);
-  return { success: true, archived, removedMatches };
-}
-
-/**
- * Restore a soft-deleted (archived) group profile by ID
- * @param {string} id - Group profile ID
- * @returns {{ success: boolean, restored?: Object, error?: string }}
- */
-function restoreGroupProfileById(id) {
-  if (!id) return { success: false, error: 'Missing id' };
-  const profiles = loadProfiles();
-  const idx = (profiles.groups || []).findIndex(g => g && g.id === id);
-  if (idx === -1) return { success: false, error: `Group not found: ${id}` };
-
-  const existing = profiles.groups[idx];
-  if (!existing || (!existing.deletedAt && !existing.isDeleted)) {
-    return { success: true, restored: existing };
-  }
-
-  const restored = { ...existing };
-  delete restored.deletedAt;
-  delete restored.isDeleted;
-  restored.updatedAt = new Date().toISOString();
-  profiles.groups[idx] = restored;
-  saveProfiles(profiles);
-
-  console.log(`♻️  Restored group profile: ${restored?.groupName || restored?.name || id} (ID: ${id})`);
-  return { success: true, restored };
-}
-
-/**
  * Get a profile by group name and email (or chatId)
  * Uses composite key to prevent groups with same name but different emails from overwriting each other
  * @param {string} groupName - Group name
@@ -317,7 +199,6 @@ function restoreGroupProfileById(id) {
  */
 function getProfileByCompositeKey(groupName, email = null, chatId = null) {
   const profiles = loadProfiles();
-  if (!groupName && !chatId) return null;
   
   // If chatId is provided, use it as primary identifier
   if (chatId) {
@@ -328,15 +209,15 @@ function getProfileByCompositeKey(groupName, email = null, chatId = null) {
   // Otherwise, match by name + email
   if (email) {
     const byNameAndEmail = profiles.groups.find(g => 
-      g.groupName && safeLower(g.groupName) === safeLower(groupName) &&
-      g.email && safeLower(g.email) === safeLower(email)
+      g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase() &&
+      g.email && g.email.toLowerCase() === email.toLowerCase()
     );
     if (byNameAndEmail) return byNameAndEmail;
   }
   
   // Fallback to name only (for backward compatibility)
   return profiles.groups.find(g => 
-    g.groupName && safeLower(g.groupName) === safeLower(groupName)
+    g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
   ) || null;
 }
 
@@ -350,7 +231,6 @@ function getProfileByCompositeKey(groupName, email = null, chatId = null) {
  */
 function updateGroupProfile(groupName, updates, email = null, chatId = null) {
   const profiles = loadProfiles();
-  if (!groupName && !chatId) return null;
   
   let groupIndex = -1;
   
@@ -362,15 +242,15 @@ function updateGroupProfile(groupName, updates, email = null, chatId = null) {
   // Otherwise, match by name + email
   if (groupIndex === -1 && email) {
     groupIndex = profiles.groups.findIndex(g => 
-      g.groupName && safeLower(g.groupName) === safeLower(groupName) &&
-      g.email && safeLower(g.email) === safeLower(email)
+      g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase() &&
+      g.email && g.email.toLowerCase() === email.toLowerCase()
     );
   }
   
   // Fallback to name only (for backward compatibility)
   if (groupIndex === -1) {
     groupIndex = profiles.groups.findIndex(g => 
-      g.groupName && safeLower(g.groupName) === safeLower(groupName)
+      g.groupName && g.groupName.toLowerCase() === groupName.toLowerCase()
     );
   }
   
@@ -491,11 +371,43 @@ function getAllMatches() {
  */
 function getMatchesForGroup(groupName) {
   const allMatches = getAllMatches();
-  if (!groupName) return [];
   return allMatches.filter(m => 
-    safeLower(m.group1Name) === safeLower(groupName) ||
-    safeLower(m.group2Name) === safeLower(groupName)
+    m.group1Name.toLowerCase() === groupName.toLowerCase() ||
+    m.group2Name.toLowerCase() === groupName.toLowerCase()
   );
+}
+
+/**
+ * Get matched groups for a chatId
+ * Finds which two groups are matched together for this chat
+ * @param {string} chatId - Chat ID
+ * @returns {Object|null} { group1: {...}, group2: {...} } or null if not found
+ */
+function getMatchedGroupsForChat(chatId) {
+  if (!chatId) return null;
+  
+  // Find the group profile for this chat
+  const profile = getProfileByChatId(chatId);
+  if (!profile || !profile.groupName) return null;
+  
+  // Find matches for this group
+  const matches = getMatchesForGroup(profile.groupName);
+  if (matches.length === 0) return null;
+  
+  // Get the best match (first one, or one marked as best match)
+  const bestMatch = matches.find(m => m.isBestMatch) || matches[0];
+  if (!bestMatch) return null;
+  
+  // Get both group profiles
+  const group1Name = bestMatch.group1Name;
+  const group2Name = bestMatch.group2Name;
+  
+  const group1 = getProfileByGroupName(group1Name);
+  const group2 = getProfileByGroupName(group2Name);
+  
+  if (!group1 || !group2) return null;
+  
+  return { group1, group2, match: bestMatch };
 }
 
 /**
@@ -631,16 +543,14 @@ module.exports = {
   groupNameExists,
   saveGroupProfile,
   getAllProfiles,
-  getActiveProfiles,
   getProfileByGroupName,
   getProfileByChatId,
-  softDeleteGroupProfileById,
-  restoreGroupProfileById,
   getProfileByCompositeKey,
   updateProfile,
   saveMatch,
   getAllMatches,
   getMatchesForGroup,
+  getMatchedGroupsForChat,
   getStats,
   getGroupResponseState,
   setGroupResponseState,

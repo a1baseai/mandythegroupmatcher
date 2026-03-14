@@ -769,6 +769,30 @@ app.get('/admin/api/stats', requireAdminAuth, (req, res) => {
   });
 });
 
+// Photos endpoint - returns array of photo URLs
+// Photos can be stored in environment variable or fetched from external source
+app.get('/admin/api/photos', requireAdminAuth, (req, res) => {
+  try {
+    // Get photos from environment variable (comma-separated URLs)
+    // Or return empty array if not configured
+    const photosEnv = process.env.MANDY_PHOTOS || '';
+    const photos = photosEnv 
+      ? photosEnv.split(',').map(url => url.trim()).filter(Boolean)
+      : [];
+    
+    res.json({
+      success: true,
+      photos: photos
+    });
+  } catch (error) {
+    console.error('Error getting photos:', error);
+    res.json({
+      success: true,
+      photos: []
+    });
+  }
+});
+
 // Mandy the Group Matchmaker webhook endpoint
 app.post('/webhook/mandy', requireWebhookSecret, mandyWebhookHandler);
 
@@ -821,33 +845,46 @@ const handleMatchRequest = async (req, res) => {
     let emailStatus = null;
     if (bestMatch) {
       console.log('📧 [Matching] Sending match notification emails...');
-      const emailResult = await emailService.sendMatchNotification(
+      
+      // Use helper functions to include photos from database
+      const { notifyBothGroupsOfMatch } = require('./services/mandy-email-helpers');
+      
+      // Create group chat link first (for share link in response)
+      const chatResult = await emailService.createGroupChatLink(
         {
           name: bestMatch.group1.groupName || bestMatch.group1.name || bestMatch.group1.group_name || bestMatch.group1.answers?.question1 || bestMatch.group1.answers?.q1 || 'Unknown Group 1',
-          email: bestMatch.group1.email || bestMatch.group1.contactEmail || null,
           memberEmails: bestMatch.group1.memberEmails || bestMatch.group1.emails || []
         },
         {
           name: bestMatch.group2.groupName || bestMatch.group2.name || bestMatch.group2.group_name || bestMatch.group2.answers?.question1 || bestMatch.group2.answers?.q1 || 'Unknown Group 2',
-          email: bestMatch.group2.email || bestMatch.group2.contactEmail || null,
           memberEmails: bestMatch.group2.memberEmails || bestMatch.group2.emails || []
-        },
-        {
-          compatibility: bestMatch.compatibility
+        }
+      );
+      
+      const shareLink = chatResult.success && chatResult.shareLink
+        ? chatResult.shareLink
+        : `${(process.env.A1ZAP_WEBAPP_URL || 'https://www.a1zap.com').replace(/\/$/, '')}/harvard/mandy`;
+      
+      // Send emails with photos using helper functions
+      const emailResults = await notifyBothGroupsOfMatch(
+        bestMatch.group1,
+        bestMatch.group2,
+        async (email, subject, html, text) => {
+          return await emailService.sendEmail(email, subject, html, text);
         }
       );
       
       emailStatus = {
-        sent: emailResult.success,
-        emails: emailResult.emails,
-        shareLink: emailResult.shareLink,
-        chatId: emailResult.chatId
+        sent: emailResults.every(r => r.success),
+        emails: emailResults,
+        shareLink: shareLink,
+        chatId: chatResult.success ? chatResult.chatId : null
       };
       
-      if (emailResult.success) {
-        console.log('✅ [Matching] Match notification emails sent successfully');
+      if (emailStatus.sent) {
+        console.log('✅ [Matching] Match notification emails sent successfully with photos');
       } else {
-        console.warn('⚠️  [Matching] Some emails failed to send:', emailResult.emails);
+        console.warn('⚠️  [Matching] Some emails failed to send:', emailResults);
       }
     }
     

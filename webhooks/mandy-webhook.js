@@ -163,11 +163,11 @@ class MandyWebhook extends BaseWebhook {
           console.log(`   API Response:`, sendResult ? JSON.stringify(sendResult, null, 2) : 'No response data');
           console.log('');
 
-          // Send mini app in second message (after welcome)
+          // Send welcome mini app (second message)
           try {
             const welcomeMiniAppConfig = config.agents.mandy.miniApps?.welcomeMiniApp;
             if (welcomeMiniAppConfig && welcomeMiniAppConfig.id && !welcomeMiniAppConfig.id.includes('your_')) {
-              console.log(`📱 [Mandy] Sending welcome mini app in second message...`);
+              console.log(`📱 [Mandy] Sending welcome mini app...`);
               
               const appId = welcomeMiniAppConfig.id;
               const appHandle = welcomeMiniAppConfig.handle || 'welcome-game';
@@ -192,12 +192,12 @@ class MandyWebhook extends BaseWebhook {
                 order: 0
               };
               
-              // Send second message with mini app
-              const secondMessage = `Let's get started! 🎮`;
-              await this.client.sendMessage(chatId, secondMessage, [richContentBlock]);
+              // Send second message with mini app and $50 prize message
+              const gameMessage = `Win this and each group wins $50 dollars for free food on us! 🎮💰`;
+              await this.client.sendMessage(chatId, gameMessage, [richContentBlock]);
               console.log(`✅ [Mandy] Welcome mini app sent successfully!`);
             } else {
-              console.log(`⚠️  [Mandy] Welcome mini app not configured, skipping second message`);
+              console.log(`⚠️  [Mandy] Welcome mini app not configured, skipping`);
             }
           } catch (miniAppError) {
             console.error(`⚠️  [Mandy] Error sending welcome mini app:`, miniAppError.message);
