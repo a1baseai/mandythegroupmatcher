@@ -1161,8 +1161,20 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
     console.log('📥 [Groups] Received group data from main server');
     console.log('   Data:', JSON.stringify(req.body, null, 2));
     
-    const groupProfileStorage = require('./services/group-profile-storage');
+    // Log photo fields specifically to debug
     const groupData = req.body;
+    const photoFields = {
+      groupPhotoUrl: groupData.groupPhotoUrl,
+      groupPhotoVariantUrls: groupData.groupPhotoVariantUrls,
+      groupPhotoVariants: groupData.groupPhotoVariants,
+      photoUrl: groupData.photoUrl,
+      photos: groupData.photos,
+      'rawData.groupPhotoUrl': groupData.rawData?.groupPhotoUrl,
+      'rawData.groupPhotoVariantUrls': groupData.rawData?.groupPhotoVariantUrls,
+    };
+    console.log('📸 [Groups] Photo fields detected:', JSON.stringify(photoFields, null, 2));
+    
+    const groupProfileStorage = require('./services/group-profile-storage');
     
     // Validate required fields
     if (!groupData.name && !groupData.groupName) {
@@ -1194,6 +1206,25 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
       },
       // Store raw data for reference
       rawData: groupData,
+      // Store photos if provided (extract from groupData - a1zapmaker sends these)
+      // Accept multiple field name variations from a1zapmaker
+      groupPhotoUrl: groupData.groupPhotoUrl || 
+                    groupData.group_photo_url || 
+                    groupData.photoUrl || 
+                    groupData.photo_url ||
+                    groupData.groupPhoto ||
+                    null,
+      groupPhotoVariantUrls: groupData.groupPhotoVariantUrls || 
+                             groupData.group_photo_variant_urls || 
+                             groupData.photoVariantUrls ||
+                             groupData.photo_variant_urls ||
+                             (Array.isArray(groupData.photos) ? groupData.photos : null) ||
+                             null,
+      groupPhotoVariants: groupData.groupPhotoVariants || 
+                         groupData.group_photo_variants || 
+                         groupData.photoVariants ||
+                         groupData.photo_variants ||
+                         null,
       // Store vibes/preferences if provided (accept multiple field names)
       vibes: groupData.vibes || groupData.vibeTags || groupData.preferences || null,
       lookingFor: groupData.lookingFor || groupData.looking_for || null,

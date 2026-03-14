@@ -194,29 +194,55 @@ function getBestPhotoUrl(group) {
     return null;
   }
   
-  // Try AI-generated variant URLs first
+  // Try AI-generated variant URLs first (top level)
   if (group.groupPhotoVariantUrls && Array.isArray(group.groupPhotoVariantUrls) && group.groupPhotoVariantUrls.length > 0) {
     const url = group.groupPhotoVariantUrls[0];
-    console.log(`[getBestPhotoUrl] Found variant URL: ${url}`);
+    console.log(`[getBestPhotoUrl] Found variant URL (top level): ${url}`);
     return url;
   }
   
-  // Try variant objects
+  // Try variant URLs in rawData
+  if (group.rawData?.groupPhotoVariantUrls && Array.isArray(group.rawData.groupPhotoVariantUrls) && group.rawData.groupPhotoVariantUrls.length > 0) {
+    const url = group.rawData.groupPhotoVariantUrls[0];
+    console.log(`[getBestPhotoUrl] Found variant URL (rawData): ${url}`);
+    return url;
+  }
+  
+  // Try variant objects (top level)
   if (group.groupPhotoVariants && Array.isArray(group.groupPhotoVariants) && group.groupPhotoVariants.length > 0) {
     const firstVariant = group.groupPhotoVariants[0];
     if (firstVariant && firstVariant.url) {
-      console.log(`[getBestPhotoUrl] Found variant object URL: ${firstVariant.url}`);
+      console.log(`[getBestPhotoUrl] Found variant object URL (top level): ${firstVariant.url}`);
       return firstVariant.url;
     }
   }
   
-  // Fallback to original group photo
+  // Try variant objects in rawData
+  if (group.rawData?.groupPhotoVariants && Array.isArray(group.rawData.groupPhotoVariants) && group.rawData.groupPhotoVariants.length > 0) {
+    const firstVariant = group.rawData.groupPhotoVariants[0];
+    if (firstVariant && firstVariant.url) {
+      console.log(`[getBestPhotoUrl] Found variant object URL (rawData): ${firstVariant.url}`);
+      return firstVariant.url;
+    }
+  }
+  
+  // Fallback to original group photo (top level)
   if (group.groupPhotoUrl) {
-    console.log(`[getBestPhotoUrl] Using original photo URL: ${group.groupPhotoUrl}`);
+    console.log(`[getBestPhotoUrl] Using original photo URL (top level): ${group.groupPhotoUrl}`);
     return group.groupPhotoUrl;
   }
   
+  // Fallback to original group photo in rawData
+  if (group.rawData?.groupPhotoUrl) {
+    console.log(`[getBestPhotoUrl] Using original photo URL (rawData): ${group.rawData.groupPhotoUrl}`);
+    return group.rawData.groupPhotoUrl;
+  }
+  
   console.warn(`[getBestPhotoUrl] No photo found for group: ${group.groupName || 'unknown'}`);
+  console.warn(`[getBestPhotoUrl] Available fields:`, Object.keys(group || {}));
+  if (group.rawData) {
+    console.warn(`[getBestPhotoUrl] rawData fields:`, Object.keys(group.rawData || {}));
+  }
   return null;
 }
 
