@@ -10,6 +10,15 @@
  */
 
 /**
+ * Validates if a string is a valid HTTP/HTTPS URL
+ * @param {string} url - URL to validate
+ * @returns {boolean} - True if valid URL, false otherwise
+ */
+function isValidUrl(url) {
+  return url && typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'));
+}
+
+/**
  * Generates HTML email template with photos side by side
  * 
  * @param {Object} params
@@ -33,11 +42,6 @@ function generateMatchEmailHtml({
   const defaultPhotoUrl = 'https://via.placeholder.com/400x300?text=Group+Photo';
   
   // Ensure photo URLs are valid (don't escape URLs, only escape display text)
-  // URLs must be strings and start with http:// or https://
-  const isValidUrl = (url) => {
-    return url && typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'));
-  };
-  
   const yourPhotoUrl = isValidUrl(groupPhotoUrl) ? groupPhotoUrl : defaultPhotoUrl;
   const theirPhotoUrl = isValidUrl(matchedGroupPhotoUrl) ? matchedGroupPhotoUrl : defaultPhotoUrl;
   
@@ -181,13 +185,6 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
-/**
- * Gets the best photo URL from a group object
- * Prefers AI-generated variants, falls back to original photo
- * 
- * @param {Object} group - Group object with photo data
- * @returns {string|null} Photo URL or null if none available
- */
 /**
  * Extract the best photo URL from a group object following a1zapmaker's photo priority:
  * 1. groupPhotoVariantUrls[0] (PREFERRED - AI-generated variant URLs array)
