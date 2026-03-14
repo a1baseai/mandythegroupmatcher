@@ -279,8 +279,28 @@ function getBestPhotoUrl(group) {
   }
   
   // PRIORITY 3: groupPhotoUrl (FALLBACK - Original photo - ONLY if no variants found)
+  // IMPORTANT: Only use original photo if we've confirmed NO variants exist anywhere
   // Check top level
   if (group.groupPhotoUrl && isValidUrl(group.groupPhotoUrl)) {
+    // Double-check that we really don't have variants before using original
+    const hasAnyVariants = 
+      (group.groupPhotoVariantUrls && Array.isArray(group.groupPhotoVariantUrls) && group.groupPhotoVariantUrls.length > 0) ||
+      (group.groupPhotoVariants && Array.isArray(group.groupPhotoVariants) && group.groupPhotoVariants.length > 0) ||
+      (group.rawData?.groupPhotoVariantUrls && Array.isArray(group.rawData.groupPhotoVariantUrls) && group.rawData.groupPhotoVariantUrls.length > 0) ||
+      (group.rawData?.groupPhotoVariants && Array.isArray(group.rawData.groupPhotoVariants) && group.rawData.groupPhotoVariants.length > 0);
+    
+    if (hasAnyVariants) {
+      console.error(`[getBestPhotoUrl] ❌ ERROR: Variants exist but were filtered out! This should not happen. Re-checking variants...`);
+      // Try one more time with more lenient validation
+      if (group.groupPhotoVariantUrls && Array.isArray(group.groupPhotoVariantUrls) && group.groupPhotoVariantUrls.length > 0) {
+        const firstUrl = group.groupPhotoVariantUrls[0];
+        if (firstUrl && typeof firstUrl === 'string' && firstUrl.length > 0) {
+          console.log(`[getBestPhotoUrl] ✅ Using first variant URL (lenient check) for ${groupName}: ${firstUrl}`);
+          return firstUrl;
+        }
+      }
+    }
+    
     console.warn(`[getBestPhotoUrl] ⚠️  FALLBACK: Using original photo URL (top level) for ${groupName} - no AI variants found: ${group.groupPhotoUrl}`);
     return group.groupPhotoUrl;
   }

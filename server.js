@@ -1209,6 +1209,35 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
       });
     }
     
+    // Helper function to extract photo fields from any location (top-level or nested)
+    const extractPhotoField = (data, fieldName, isArray = false) => {
+      // Check top level first
+      if (data[fieldName] !== undefined && data[fieldName] !== null) {
+        return data[fieldName];
+      }
+      // Check rawData if it exists
+      if (data.rawData && data.rawData[fieldName] !== undefined && data.rawData[fieldName] !== null) {
+        return data.rawData[fieldName];
+      }
+      // Check alternative field names
+      const altNames = {
+        groupPhotoVariantUrls: ['group_photo_variant_urls', 'photoVariantUrls', 'photo_variant_urls', 'photos'],
+        groupPhotoVariants: ['group_photo_variants', 'photoVariants', 'photo_variants'],
+        groupPhotoUrl: ['group_photo_url', 'photoUrl', 'photo_url', 'groupPhoto']
+      };
+      if (altNames[fieldName]) {
+        for (const altName of altNames[fieldName]) {
+          if (data[altName] !== undefined && data[altName] !== null) {
+            return data[altName];
+          }
+          if (data.rawData && data.rawData[altName] !== undefined && data.rawData[altName] !== null) {
+            return data.rawData[altName];
+          }
+        }
+      }
+      return null;
+    };
+    
     // Transform incoming data to expected format
     // Handle different possible field names from the main server
     const transformedGroup = {
@@ -1236,24 +1265,12 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
       // 1. groupPhotoVariantUrls (PREFERRED - Array of variant URL strings)
       // 2. groupPhotoVariants (SECOND CHOICE - Array of variant objects with .url)
       // 3. groupPhotoUrl (FALLBACK - Original photo URL)
-      // Accept multiple field name variations for backwards compatibility
-      groupPhotoVariantUrls: groupData.groupPhotoVariantUrls || 
-                             groupData.group_photo_variant_urls || 
-                             groupData.photoVariantUrls ||
-                             groupData.photo_variant_urls ||
+      // Use helper function to extract from any location
+      groupPhotoVariantUrls: extractPhotoField(groupData, 'groupPhotoVariantUrls', true) || 
                              (Array.isArray(groupData.photos) ? groupData.photos : null) ||
                              null,
-      groupPhotoVariants: groupData.groupPhotoVariants || 
-                         groupData.group_photo_variants || 
-                         groupData.photoVariants ||
-                         groupData.photo_variants ||
-                         null,
-      groupPhotoUrl: groupData.groupPhotoUrl || 
-                    groupData.group_photo_url || 
-                    groupData.photoUrl || 
-                    groupData.photo_url ||
-                    groupData.groupPhoto ||
-                    null,
+      groupPhotoVariants: extractPhotoField(groupData, 'groupPhotoVariants', true) || null,
+      groupPhotoUrl: extractPhotoField(groupData, 'groupPhotoUrl', false) || null,
       // Store vibes/preferences if provided (accept multiple field names)
       vibes: groupData.vibes || groupData.vibeTags || groupData.preferences || null,
       lookingFor: groupData.lookingFor || groupData.looking_for || null,
