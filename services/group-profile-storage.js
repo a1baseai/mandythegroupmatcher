@@ -271,11 +271,25 @@ function updateGroupProfile(groupName, updates, email = null, chatId = null) {
   }
   
   // Update the profile
-  profiles.groups[groupIndex] = {
-    ...profiles.groups[groupIndex],
+  // IMPORTANT: Preserve existing photo fields if new ones aren't provided, but prioritize new ones
+  const existingGroup = profiles.groups[groupIndex];
+  const mergedUpdates = {
+    ...existingGroup,
     ...updates,
+    // If updates don't have photo fields but rawData does, extract them
+    groupPhotoVariantUrls: updates.groupPhotoVariantUrls || 
+                          (updates.rawData?.groupPhotoVariantUrls && !existingGroup.groupPhotoVariantUrls 
+                            ? updates.rawData.groupPhotoVariantUrls 
+                            : existingGroup.groupPhotoVariantUrls),
+    groupPhotoVariants: updates.groupPhotoVariants || 
+                       (updates.rawData?.groupPhotoVariants && !existingGroup.groupPhotoVariants 
+                         ? updates.rawData.groupPhotoVariants 
+                         : existingGroup.groupPhotoVariants),
+    groupPhotoUrl: updates.groupPhotoUrl || existingGroup.groupPhotoUrl,
     updatedAt: new Date().toISOString()
   };
+  
+  profiles.groups[groupIndex] = mergedUpdates;
   
   saveProfiles(profiles);
   console.log(`✅ Updated group profile: ${groupName}${email ? ` (${email})` : ''}`);

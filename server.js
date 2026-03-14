@@ -1291,6 +1291,18 @@ app.post('/api/groups/receive', requireIngestToken, async (req, res) => {
     if (existingProfile) {
       // Update existing profile
       console.log(`🔄 [Groups] Updating existing group: ${transformedGroup.groupName}${transformedGroup.email ? ` (${transformedGroup.email})` : ''}`);
+      
+      // IMPORTANT: Ensure photo fields are extracted to top level even if they're only in rawData
+      // This fixes groups that were created before photo extraction was implemented
+      if (!transformedGroup.groupPhotoVariantUrls && transformedGroup.rawData?.groupPhotoVariantUrls) {
+        transformedGroup.groupPhotoVariantUrls = transformedGroup.rawData.groupPhotoVariantUrls;
+        console.log(`📸 [Groups] Extracted groupPhotoVariantUrls from rawData: ${Array.isArray(transformedGroup.groupPhotoVariantUrls) ? transformedGroup.groupPhotoVariantUrls.length : 1} variant(s)`);
+      }
+      if (!transformedGroup.groupPhotoVariants && transformedGroup.rawData?.groupPhotoVariants) {
+        transformedGroup.groupPhotoVariants = transformedGroup.rawData.groupPhotoVariants;
+        console.log(`📸 [Groups] Extracted groupPhotoVariants from rawData: ${Array.isArray(transformedGroup.groupPhotoVariants) ? transformedGroup.groupPhotoVariants.length : 1} variant(s)`);
+      }
+      
       const updated = groupProfileStorage.updateGroupProfile(
         transformedGroup.groupName,
         transformedGroup,
