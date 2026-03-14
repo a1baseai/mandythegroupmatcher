@@ -203,41 +203,51 @@ function getBestPhotoUrl(group) {
   
   const groupName = group.groupName || group.name || 'unknown';
   
-  // PRIORITY 1: groupPhotoVariantUrls[0] (PREFERRED - Array of variant URL strings)
+  // PRIORITY 1: groupPhotoVariantUrls (PREFERRED - Array of variant URL strings)
+  // Randomly select from available variants
   // Check top level first
   if (group.groupPhotoVariantUrls && Array.isArray(group.groupPhotoVariantUrls) && group.groupPhotoVariantUrls.length > 0) {
-    const url = group.groupPhotoVariantUrls[0];
-    if (isValidUrl(url)) {
-      console.log(`[getBestPhotoUrl] ✅ Found variant URL (top level) for ${groupName}: ${url}`);
+    const validUrls = group.groupPhotoVariantUrls.filter(url => isValidUrl(url));
+    if (validUrls.length > 0) {
+      const randomIndex = Math.floor(Math.random() * validUrls.length);
+      const url = validUrls[randomIndex];
+      console.log(`[getBestPhotoUrl] ✅ Randomly selected variant URL ${randomIndex + 1}/${validUrls.length} (top level) for ${groupName}: ${url}`);
       return url;
     }
   }
   
   // Check rawData
   if (group.rawData?.groupPhotoVariantUrls && Array.isArray(group.rawData.groupPhotoVariantUrls) && group.rawData.groupPhotoVariantUrls.length > 0) {
-    const url = group.rawData.groupPhotoVariantUrls[0];
-    if (isValidUrl(url)) {
-      console.log(`[getBestPhotoUrl] ✅ Found variant URL (rawData) for ${groupName}: ${url}`);
+    const validUrls = group.rawData.groupPhotoVariantUrls.filter(url => isValidUrl(url));
+    if (validUrls.length > 0) {
+      const randomIndex = Math.floor(Math.random() * validUrls.length);
+      const url = validUrls[randomIndex];
+      console.log(`[getBestPhotoUrl] ✅ Randomly selected variant URL ${randomIndex + 1}/${validUrls.length} (rawData) for ${groupName}: ${url}`);
       return url;
     }
   }
   
-  // PRIORITY 2: groupPhotoVariants[0].url (SECOND CHOICE - Array of variant objects)
+  // PRIORITY 2: groupPhotoVariants (SECOND CHOICE - Array of variant objects)
+  // Randomly select from available variants
   // Check top level
   if (group.groupPhotoVariants && Array.isArray(group.groupPhotoVariants) && group.groupPhotoVariants.length > 0) {
-    const firstVariant = group.groupPhotoVariants[0];
-    if (firstVariant && firstVariant.url && isValidUrl(firstVariant.url)) {
-      console.log(`[getBestPhotoUrl] ✅ Found variant object URL (top level) for ${groupName}: ${firstVariant.url}`);
-      return firstVariant.url;
+    const validVariants = group.groupPhotoVariants.filter(v => v && v.url && isValidUrl(v.url));
+    if (validVariants.length > 0) {
+      const randomIndex = Math.floor(Math.random() * validVariants.length);
+      const selectedVariant = validVariants[randomIndex];
+      console.log(`[getBestPhotoUrl] ✅ Randomly selected variant object ${randomIndex + 1}/${validVariants.length} (top level) for ${groupName}: ${selectedVariant.url}`);
+      return selectedVariant.url;
     }
   }
   
   // Check rawData
   if (group.rawData?.groupPhotoVariants && Array.isArray(group.rawData.groupPhotoVariants) && group.rawData.groupPhotoVariants.length > 0) {
-    const firstVariant = group.rawData.groupPhotoVariants[0];
-    if (firstVariant && firstVariant.url && isValidUrl(firstVariant.url)) {
-      console.log(`[getBestPhotoUrl] ✅ Found variant object URL (rawData) for ${groupName}: ${firstVariant.url}`);
-      return firstVariant.url;
+    const validVariants = group.rawData.groupPhotoVariants.filter(v => v && v.url && isValidUrl(v.url));
+    if (validVariants.length > 0) {
+      const randomIndex = Math.floor(Math.random() * validVariants.length);
+      const selectedVariant = validVariants[randomIndex];
+      console.log(`[getBestPhotoUrl] ✅ Randomly selected variant object ${randomIndex + 1}/${validVariants.length} (rawData) for ${groupName}: ${selectedVariant.url}`);
+      return selectedVariant.url;
     }
   }
   
@@ -255,21 +265,43 @@ function getBestPhotoUrl(group) {
   }
   
   // Also check alternative field names (for backwards compatibility)
-  const altFields = [
-    'group_photo_url', 'photoUrl', 'photo_url', 'groupPhoto',
-    'group_photo_variant_urls', 'photoVariantUrls', 'photos'
-  ];
+  // For variant arrays, randomly select; for single URLs, use as-is
+  const variantArrayFields = ['group_photo_variant_urls', 'photoVariantUrls', 'photos'];
+  const singleUrlFields = ['group_photo_url', 'photoUrl', 'photo_url', 'groupPhoto'];
   
-  for (const field of altFields) {
+  // Check variant array fields (randomly select)
+  for (const field of variantArrayFields) {
+    if (group[field] && Array.isArray(group[field])) {
+      const validUrls = group[field].filter(url => isValidUrl(url));
+      if (validUrls.length > 0) {
+        const randomIndex = Math.floor(Math.random() * validUrls.length);
+        const url = validUrls[randomIndex];
+        console.log(`[getBestPhotoUrl] ✅ Randomly selected photo via alternative field '${field}' for ${groupName}: ${url}`);
+        return url;
+      }
+    }
+    if (group.rawData?.[field] && Array.isArray(group.rawData[field])) {
+      const validUrls = group.rawData[field].filter(url => isValidUrl(url));
+      if (validUrls.length > 0) {
+        const randomIndex = Math.floor(Math.random() * validUrls.length);
+        const url = validUrls[randomIndex];
+        console.log(`[getBestPhotoUrl] ✅ Randomly selected photo via alternative field 'rawData.${field}' for ${groupName}: ${url}`);
+        return url;
+      }
+    }
+  }
+  
+  // Check single URL fields (use as-is)
+  for (const field of singleUrlFields) {
     if (group[field]) {
-      const url = Array.isArray(group[field]) ? group[field][0] : group[field];
+      const url = group[field];
       if (isValidUrl(url)) {
         console.log(`[getBestPhotoUrl] ✅ Found photo via alternative field '${field}' for ${groupName}: ${url}`);
         return url;
       }
     }
     if (group.rawData?.[field]) {
-      const url = Array.isArray(group.rawData[field]) ? group.rawData[field][0] : group.rawData[field];
+      const url = group.rawData[field];
       if (isValidUrl(url)) {
         console.log(`[getBestPhotoUrl] ✅ Found photo via alternative field 'rawData.${field}' for ${groupName}: ${url}`);
         return url;
