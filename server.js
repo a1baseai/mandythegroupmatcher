@@ -45,6 +45,8 @@ const ADMIN_PASSWORD = process.env.MANDY_ADMIN_PASSWORD || 'a1zapped!';
 const INGEST_TOKEN = process.env.MANDY_INGEST_TOKEN || '';
 // - /webhook/mandy expects: X-Webhook-Secret: <secret>
 const WEBHOOK_SECRET = process.env.MANDY_WEBHOOK_SECRET || '';
+// - /api/valence-turn (Valence mini-app BFF) expects: Bearer or X-Valence-Secret when set
+const VALENCE_API_SECRET = process.env.VALENCE_API_SECRET || '';
 
 // Lightweight rate limiting for protected routes (best-effort; per-process memory)
 function rateLimit({ windowMs, max, keyFn }) {
@@ -93,6 +95,23 @@ function requireWebhookSecret(req, res, next) {
   return next();
 }
 
+function requireValenceApiSecret(req, res, next) {
+  if (!VALENCE_API_SECRET) return next();
+  const auth = req.headers.authorization || '';
+  const bearer =
+    auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';
+  const header = req.headers['x-valence-secret'];
+  const token =
+    (typeof header === 'string' ? header : '') || bearer;
+  if (!token || token !== VALENCE_API_SECRET) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Missing/invalid Valence API secret',
+    });
+  }
+  return next();
+}
+
 function requireAdminAuth(req, res, next) {
   try {
     const auth = req.headers.authorization || '';
@@ -127,10 +146,12 @@ const agentRegistry = new AgentRegistry();
 agentRegistry.register('mandy', mandyAgent, mandyWebhookHandler);
 
 const app = express();
+const cors = require('cors');
 
-// Middleware
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Middleware (CORS for Valence mini-app browser → same-host Claude BFF)
+app.use(cors({ origin: true }));
+app.use(bodyParser.json({ limit: '512kb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '512kb' }));
 
 // Request logging
 app.use((req, res, next) => {
@@ -159,10 +180,65 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     config: {
       hasClaudeApiKey: !!config.claude.apiKey && !config.claude.apiKey.includes('your_'),
-      hasA1ZapApiKey: !!config.a1zap.apiKey && !config.a1zap.apiKey.includes('your_')
-    }
+      hasA1ZapApiKey: !!config.a1zap.apiKey && !config.a1zap.apiKey.includes('your_'),
+      valenceTurnProtected: Boolean(VALENCE_API_SECRET),
+    },
   });
 });
+
+// Valence (A1Zap mini-app) — shared Claude stack; POST from browser bundle on www.a1zap.com
+const claudeService = require('./services/claude-service');
+app.post(
+  '/api/valence-turn',
+  rateLimit({ windowMs: 60_000, max: 120 }),
+  requireValenceApiSecret,
+  async (req, res) => {
+    try {
+      if (config.validation.isPlaceholder(config.claude.apiKey)) {
+        return res.status(503).json({
+          error: 'Claude not configured',
+          message: 'Set CLAUDE_API_KEY in environment',
+        });
+      }
+
+      const { system, user } = req.body || {};
+      if (!user || typeof user !== 'string') {
+        return res.status(400).json({ error: 'Missing body.user (string)' });
+      }
+      const systemPrompt =
+        typeof system === 'string' && system.trim() ? system.trim() : undefined;
+
+      const rawText = await claudeService.generateText(user, {
+        systemPrompt,
+        maxTokens: config.claude.maxTokens,
+        temperature: config.claude.temperature,
+        timeout: 60000,
+      });
+
+      let parsed = null;
+      try {
+        const s = rawText.trim();
+        const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        const inner = fence ? fence[1].trim() : s;
+        const start = inner.indexOf('{');
+        const end = inner.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+          parsed = JSON.parse(inner.slice(start, end + 1));
+        }
+      } catch {
+        /* client may parse rawText */
+      }
+
+      return res.json({ ok: true, rawText, parsed });
+    } catch (err) {
+      console.error('valence-turn error:', err);
+      return res.status(500).json({
+        error: 'Claude request failed',
+        message: err.message || String(err),
+      });
+    }
+  }
+);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -1414,6 +1490,9 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`  POST /webhook/mandy               - Mandy the Group Matchmaker`);
   console.log(`  GET  /health                      - Health check`);
   console.log(`\nAPI Endpoints:`);
+  console.log(
+    `  POST /api/valence-turn           - Valence mini-app LLM (optional: VALENCE_API_SECRET)`
+  );
   console.log(`  GET/POST /api/match               - Run matching algorithm (clickable!)`);
   console.log(`  GET  /api/matches                 - Get all saved matches`);
   console.log(`  GET  /api/groups                  - Get all group profiles`);
