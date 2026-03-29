@@ -148,7 +148,7 @@ function saveGroupProfile(profile) {
     ...profile,
     id: `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     createdAt: new Date().toISOString(),
-    profileVersion: '1.0'
+    profileVersion: profile.profileVersion || '1.0'
   };
   
   profiles.groups.push(fullProfile);
@@ -320,6 +320,29 @@ function updateProfile(chatId, updates) {
   saveProfiles(profiles);
   console.log(`✅ Updated profile for chat ${chatId}`);
   return profiles.groups[profileIndex];
+}
+
+/**
+ * Create or update a group profile keyed by chatId (interview / Mandy flow).
+ * @param {string} chatId
+ * @param {Object} updates - fields to merge (e.g. vibeProfile, groupName, interviewComplete)
+ * @returns {Object} saved profile
+ */
+function upsertProfileByChatId(chatId, updates) {
+  if (!chatId) {
+    throw new Error('chatId is required for upsertProfileByChatId');
+  }
+  const existing = getProfileByChatId(chatId);
+  if (existing) {
+    return updateProfile(chatId, updates);
+  }
+  return saveGroupProfile({
+    chatId,
+    groupName: updates.groupName || 'Unnamed group',
+    ...updates,
+    profileVersion: updates.profileVersion || '2.0',
+    source: updates.source || 'mandy_interview'
+  });
 }
 
 /**
@@ -635,6 +658,7 @@ module.exports = {
   clearInterviewState,
   groupNameExists,
   saveGroupProfile,
+  upsertProfileByChatId,
   getAllProfiles,
   getActiveProfiles,
   getProfileByGroupName,

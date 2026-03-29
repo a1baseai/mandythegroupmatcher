@@ -6,11 +6,11 @@ const groupProfileStorage = require('../services/group-profile-storage');
 const webhookHelpers = require('../services/webhook-helpers');
 const MiniAppService = require('../services/mini-app-service');
 const activityPlanningService = require('../services/activity-planning-service');
+const mandyInterviewEngine = require('../services/mandy-interview-engine');
 const config = require('../config');
 
 /**
- * Mandy the Icebreaker Webhook Handler
- * Helps pre-matched groups break the ice, get comfortable, and familiarize themselves with the app
+ * Mandy webhook — group interview (Amata-style facilitator), profiles stored for admin matching.
  */
 class MandyWebhook extends BaseWebhook {
   constructor() {
@@ -29,20 +29,34 @@ class MandyWebhook extends BaseWebhook {
       'https://api.a1zap.com'
     );
   }
+
+  /**
+   * @override
+   */
+  extractWebhookData(body) {
+    const base = super.extractWebhookData(body);
+    if (!base.valid) return base;
+    const msg = base.message || body.message;
+    const userDisplayName =
+      msg?.user?.userName ||
+      msg?.userName ||
+      msg?.author?.name ||
+      body.user?.userName ||
+      '';
+    return { ...base, userDisplayName };
+  }
   
   /**
-   * Override handle to check if Mandy will respond before showing typing indicator
+   * Typing indicator only when we might reply (interview engine heuristics).
    * @override
    */
   async handle(req, res) {
     try {
-      // Check for chat.started event first
       const { event } = req.body;
       if (event === 'chat.started') {
         return this.handleChatStarted(req, res);
       }
 
-      // Extract webhook data
       const data = this.extractWebhookData(req.body);
       if (!data.valid) {
         return res.status(400).json({
@@ -51,7 +65,6 @@ class MandyWebhook extends BaseWebhook {
         });
       }
 
-      // Check for duplicate message
       if (webhookHelpers.isDuplicateMessage(data.messageId)) {
         console.log(`⚠️  [Mandy] Duplicate message detected: ${data.messageId} - skipping processing`);
         return res.json({
@@ -62,38 +75,35 @@ class MandyWebhook extends BaseWebhook {
         });
       }
 
-      // Quick check: Does the message mention Mandy?
-      // This prevents showing typing indicator when Mandy won't respond
-      const userMessage = data.userMessage || '';
-      const userMsgLower = userMessage.toLowerCase();
-      const mentionsMandy = userMsgLower.includes('mandy');
-      
-      // Also check if it's the first message (needs mini app sharing)
-      const interviewState = groupProfileStorage.getInterviewState(data.chatId);
-      const miniAppsShared = interviewState?.miniAppsShared || false;
-      const isFirstMessage = !miniAppsShared;
+      const chatId = data.chatId;
+      const cur = groupProfileStorage.getInterviewState(chatId) || {};
+      const nextUserCount = (cur.userMessageCount || 0) + 1;
+      const nextSinceMandy = (cur.messagesSinceLastMandy || 0) + 1;
+      groupProfileStorage.setInterviewState(chatId, {
+        ...cur,
+        sessionId: cur.sessionId || `mandy-${chatId}-${Date.now()}`,
+        interviewMode: cur.interviewMode || 'v2',
+        userMessageCount: nextUserCount,
+        messagesSinceLastMandy: nextSinceMandy
+      });
 
-      // If Mandy won't respond, return early without processing flag
-      // This prevents A1Zap from showing typing indicator
-      if (!mentionsMandy && !isFirstMessage) {
-        console.log(`✅ [Mandy] Message doesn't mention Mandy and no action needed - skipping (no typing indicator)`);
-        // Mark as processed to prevent duplicate processing
+      const st = groupProfileStorage.getInterviewState(chatId);
+      if (!mandyInterviewEngine.mightNeedReplyHeuristic(data.userMessage, st)) {
+        console.log(`✅ [Mandy] Silent turn (heuristic) — no typing indicator`);
         webhookHelpers.markMessageProcessed(data.messageId);
         return res.json({
           success: true,
           agent: this.agent.name,
-          processing: false,  // This tells A1Zap not to show typing
+          processing: false,
           skipped: true,
-          reason: 'name_not_mentioned',
+          reason: 'interview_silent_turn',
           messageId: data.messageId
         });
       }
 
-      // Mandy will respond - proceed with normal handling
       return super.handle(req, res);
     } catch (error) {
       console.error(`❌ [Mandy] Error in handle override:`, error);
-      // Fall back to parent handle method
       return super.handle(req, res);
     }
   }
@@ -137,10 +147,16 @@ class MandyWebhook extends BaseWebhook {
       const sessionId = `mandy-${chatId}-${Date.now()}`;
       console.log(`🆔 [Mandy] Generated session ID: ${sessionId}`);
 
-      // Initialize interview state with session ID (no group name needed)
+      const welcomeMiniEnabled = String(process.env.MANDY_WELCOME_MINI_APP || '').toLowerCase() === 'true';
       groupProfileStorage.setInterviewState(chatId, {
         sessionId,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        interviewMode: 'v2',
+        phaseIndex: 0,
+        messagesSinceLastMandy: 0,
+        userMessageCount: 0,
+        interviewComplete: false,
+        miniAppsShared: welcomeMiniEnabled
       });
 
       // Get welcome message from agent
@@ -163,10 +179,15 @@ class MandyWebhook extends BaseWebhook {
           console.log(`   API Response:`, sendResult ? JSON.stringify(sendResult, null, 2) : 'No response data');
           console.log('');
 
-          // Send welcome mini app (second message)
+          // Optional welcome mini app (off by default — interview-first flow)
           try {
             const welcomeMiniAppConfig = config.agents.mandy.miniApps?.welcomeMiniApp;
-            if (welcomeMiniAppConfig && welcomeMiniAppConfig.id && !welcomeMiniAppConfig.id.includes('your_')) {
+            if (
+              welcomeMiniEnabled &&
+              welcomeMiniAppConfig &&
+              welcomeMiniAppConfig.id &&
+              !welcomeMiniAppConfig.id.includes('your_')
+            ) {
               console.log(`📱 [Mandy] Sending welcome mini app...`);
               
               const appId = welcomeMiniAppConfig.id;
@@ -363,150 +384,158 @@ class MandyWebhook extends BaseWebhook {
   }
 
   /**
-   * Process Mandy request - NEW MINI APP-DRIVEN FLOW
+   * Group interview: extract vibe, persist profile for /admin + /api/match, reply only when appropriate.
    * @param {Object} data - Request data with conversation history
    * @returns {Promise<Object>} Result with response text
    */
   async processRequest(data) {
     try {
-      const { userMessage, conversation, chatId, messageId } = data;
-      const requestStartTime = Date.now();
-      
-      // Log for debugging
-      console.log(`\n[Mandy] Processing request (Mini App Flow):`);
+      const { userMessage, conversation, chatId, messageId, userDisplayName } = data;
+
+      console.log(`\n[Mandy] Interview flow:`);
       console.log(`  Chat ID: ${chatId}`);
       console.log(`  Message ID: ${messageId || 'MISSING'}`);
       console.log(`  User Message: "${userMessage?.substring(0, 100)}..."`);
       console.log(`  Conversation length: ${conversation?.length || 0}`);
-    
-      // Validate user message
+
       if (!userMessage || typeof userMessage !== 'string' || userMessage.trim().length === 0) {
         console.warn(`⚠️  [Mandy] Empty or invalid user message`);
         return {
-          response: "I didn't catch that! Could you try again? 😊",
+          response: "I didn't quite catch that — mind saying it once more?",
           sent: false
         };
       }
-      
-      // NEW FLOW: Check if mini apps have been shared
-      const interviewState = groupProfileStorage.getInterviewState(chatId);
-      const miniAppsShared = interviewState?.miniAppsShared || false;
-      let currentSessionId = interviewState?.sessionId;
-      
-      // If no interview state exists, create it with session ID
-      if (!interviewState || !currentSessionId) {
+
+      let interviewState = groupProfileStorage.getInterviewState(chatId) || {};
+      let currentSessionId = interviewState.sessionId;
+      if (!currentSessionId) {
         currentSessionId = `mandy-${chatId}-${Date.now()}`;
         groupProfileStorage.setInterviewState(chatId, {
+          ...interviewState,
           sessionId: currentSessionId,
-          createdAt: new Date().toISOString()
+          createdAt: interviewState.createdAt || new Date().toISOString(),
+          interviewMode: 'v2',
+          phaseIndex: interviewState.phaseIndex ?? 0,
+          messagesSinceLastMandy: interviewState.messagesSinceLastMandy ?? 0,
+          userMessageCount: interviewState.userMessageCount ?? 0,
+          interviewComplete: interviewState.interviewComplete ?? false
         });
+        interviewState = groupProfileStorage.getInterviewState(chatId);
       }
-      
-      // Check if user is asking for a mini app/game (only if Mandy's name is mentioned)
+
       const userMsgLower = userMessage.toLowerCase();
       const mentionsMandy = userMsgLower.includes('mandy');
-      const askingForGame = (userMsgLower.includes('game') || 
-                           userMsgLower.includes('mini app') ||
-                           userMsgLower.includes('mini-app') ||
-                           userMsgLower.includes('app')) &&
-                           (userMsgLower.includes('send') || 
-                            userMsgLower.includes('want') ||
-                            userMsgLower.includes('need') ||
-                            userMsgLower.includes('another') ||
-                            userMsgLower.includes('more'));
-      
-      // Get list of sent games from interview state
-      const sentGameIds = interviewState?.sentGameIds || [];
-      
-      // Initialize miniAppsShared flag if not set (for tracking)
-      if (!miniAppsShared && interviewState) {
-        const currentState = groupProfileStorage.getInterviewState(chatId) || {};
-        groupProfileStorage.setInterviewState(chatId, {
-          ...currentState,
-          sessionId: currentSessionId,
-          miniAppsShared: false, // Not shared yet - only share when explicitly requested
-          sentGameIds: []  // Initialize empty array to track sent games
-        });
-      }
-      
-      // Only send mini app if user explicitly asks for one AND mentioned Mandy
+      const miniAppsOn = String(process.env.MANDY_ENABLE_MINI_APPS || '').toLowerCase() === 'true';
+      const askingForGame =
+        miniAppsOn &&
+        (userMsgLower.includes('game') ||
+          userMsgLower.includes('mini app') ||
+          userMsgLower.includes('mini-app')) &&
+        (userMsgLower.includes('send') ||
+          userMsgLower.includes('want') ||
+          userMsgLower.includes('need') ||
+          userMsgLower.includes('another') ||
+          userMsgLower.includes('more'));
+
       if (askingForGame && mentionsMandy) {
+        const sentGameIds = interviewState?.sentGameIds || [];
         const result = await this.shareOneRandomMiniApp(chatId, currentSessionId, sentGameIds);
         if (result) {
-          // Mark as shared if this is the first one
-          if (!miniAppsShared) {
-            const currentState = groupProfileStorage.getInterviewState(chatId) || {};
-            groupProfileStorage.setInterviewState(chatId, {
-              ...currentState,
-              miniAppsShared: true,
-              sharedAt: new Date().toISOString()
-            });
-          }
-          return {
-            response: null,
-            sent: true  // Game already sent by shareOneRandomMiniApp
-          };
-        } else {
-          // All games have been sent
-          return {
-            response: `You've played all my games! 🎮 That's awesome! If you want to discover more games, scroll through the Public Zaps feed!`,
-            sent: false
-          };
-        }
-      }
-      
-      // Step 3: Silently update/create profile in background (no announcements)
-      // Get session ID from interview state
-      const currentState = groupProfileStorage.getInterviewState(chatId) || {};
-      const pollSessionId = currentState.sessionId || `mandy-${chatId}-${Date.now()}`;
-      
-      // Check if profile exists - if so, update it silently in background
-      const existingProfile = groupProfileStorage.getProfileByChatId(chatId);
-      if (existingProfile) {
-        // Profile exists - silently update it with mini app data in background
-        const hasMiniAppSessions = existingProfile.miniAppSessions && Object.keys(existingProfile.miniAppSessions).length > 0;
-        
-        if (hasMiniAppSessions) {
-          // Poll for mini app data in background (silent update - no user notification)
-          this.pollAndUpdateProfileFromMiniApps(chatId, existingProfile).catch(err => {
-            console.error(`❌ [Mandy] Error polling mini app data:`, err);
+          const cur = groupProfileStorage.getInterviewState(chatId) || {};
+          groupProfileStorage.setInterviewState(chatId, {
+            ...cur,
+            miniAppsShared: true,
+            sharedAt: new Date().toISOString()
           });
+          return { response: null, sent: true };
         }
-      } else {
-        // No profile yet - create one in background (silent - no user notification)
-        this.pollAndCreateProfileFromMiniApps(chatId, pollSessionId).catch(err => {
-          console.error(`❌ [Mandy] Error creating profile from mini apps:`, err);
-        });
-      }
-      
-      // Mandy only responds when her name is mentioned (to avoid interrupting game time)
-      // But when prompted, she can handle ALL types of questions and edge cases with humor
-      
-      // If user is asking for a game, that's already handled above
-      // Otherwise, only respond if Mandy's name is mentioned
-      if (!mentionsMandy) {
-        // Don't respond if Mandy's name isn't mentioned
         return {
-          response: null,
-          sent: true  // Silent - let them play games without interruption
+          response: `If you're hunting more games, browse Public Zaps — I'm mostly here to take notes on your group today.`,
+          sent: false
         };
       }
-      
-      // User mentioned Mandy - generate a conversational response
-      // She can handle all types of questions, edge cases, etc. - just be funny!
-      return await this.generateConversationalResponse(chatId, userMessage, conversation, 0);
-      
+
+      const existingProfile = groupProfileStorage.getProfileByChatId(chatId);
+      if (
+        existingProfile?.miniAppSessions &&
+        Object.keys(existingProfile.miniAppSessions).length > 0
+      ) {
+        this.pollAndUpdateProfileFromMiniApps(chatId, existingProfile).catch(err => {
+          console.error(`❌ [Mandy] Error polling mini app data:`, err);
+        });
+      }
+
+      const cleanedHistory = this.cleanConversationHistory(conversation || []);
+
+      const decision = await mandyInterviewEngine.decideInterviewTurn({
+        userMessage,
+        userDisplayName,
+        conversation: cleanedHistory,
+        interviewState,
+        existingProfile,
+        messagesSinceLastMandy: interviewState.messagesSinceLastMandy || 0,
+        userMessageCount: interviewState.userMessageCount || 0
+      });
+
+      const prevVibe = existingProfile?.vibeProfile || {};
+      const mergedVibe = mandyInterviewEngine.mergeVibeProfile(prevVibe, decision.extracted || {});
+      const groupName =
+        (decision.extracted && decision.extracted.groupName) ||
+        existingProfile?.groupName ||
+        mergedVibe.groupName ||
+        'Unnamed group';
+
+      const sizeStr =
+        mergedVibe.memberCountEstimate != null && mergedVibe.memberCountEstimate !== ''
+          ? String(mergedVibe.memberCountEstimate)
+          : '';
+
+      groupProfileStorage.upsertProfileByChatId(chatId, {
+        groupName,
+        vibeProfile: mergedVibe,
+        sessionId: interviewState.sessionId,
+        interviewComplete: !!decision.interviewComplete,
+        source: 'mandy_interview',
+        profileVersion: '2.0',
+        answers: {
+          question1: groupName,
+          q1: groupName,
+          question2: sizeStr,
+          q2: sizeStr,
+          question3: mergedVibe.activitiesTheyEnjoy || '',
+          question4: mergedVibe.extras || '',
+          question5: (mergedVibe.interests || []).join(', '),
+          question7: mergedVibe.vibeNotes || '',
+          question10: mergedVibe.lookingForInOthers || ''
+        }
+      });
+
+      const nextSince =
+        decision.shouldReply && decision.replyText
+          ? 0
+          : interviewState.messagesSinceLastMandy || 0;
+
+      groupProfileStorage.setInterviewState(chatId, {
+        ...interviewState,
+        phaseIndex: decision.nextPhaseIndex,
+        interviewComplete: !!decision.interviewComplete,
+        messagesSinceLastMandy: nextSince
+      });
+
+      console.log(
+        `📋 [Mandy] Turn: shouldReply=${decision.shouldReply} kind=${decision.replyKind} phase→${decision.nextPhaseIndex} complete=${decision.interviewComplete}`
+      );
+
+      if (!decision.shouldReply || !decision.replyText) {
+        return { response: null, sent: true };
+      }
+
+      return { response: decision.replyText, sent: false };
     } catch (error) {
-      // CRITICAL: Always return a response, even on error
       console.error(`❌ [Mandy] Critical error in processRequest:`, error);
-      console.error(`   Error message:`, error.message);
-      console.error(`   Stack:`, error.stack);
-      
-      // Don't send error message to avoid double messages - just return null
-      // The error is logged for debugging
       return {
         response: null,
-        sent: true  // Don't send anything on error to avoid double messages
+        sent: true
       };
     }
   }
@@ -523,10 +552,9 @@ class MandyWebhook extends BaseWebhook {
     
     return conversation.map(msg => {
       if (msg.role === 'assistant' && msg.content) {
-        // Remove "Mandy the Group Matcher:" or "Mandy the Group Matcher: " prefixes
         let cleaned = msg.content.replace(/^Mandy the Group Matcher:\s*/g, '');
-        // Remove multiple instances of the prefix (in case it's duplicated)
         cleaned = cleaned.replace(/Mandy the Group Matcher:\s*/g, '');
+        cleaned = cleaned.replace(/^Mandy:\s*/gi, '');
         return {
           ...msg,
           content: cleaned.trim()

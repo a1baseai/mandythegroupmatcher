@@ -41,6 +41,7 @@ function getGroupDisplayName(group) {
   if (!group || typeof group !== 'object') return 'Unknown';
   return (
     group.groupName ||
+    group.vibeProfile?.groupName ||
     group.name ||
     group.group_name ||
     (group.answers && (group.answers.question1 || group.answers.q1)) ||
@@ -48,10 +49,60 @@ function getGroupDisplayName(group) {
   );
 }
 
+function getVibeNarrative(group) {
+  const vp = group && group.vibeProfile;
+  if (!vp || typeof vp !== 'object') return '';
+  const parts = [];
+  if (vp.narrativeSummary && String(vp.narrativeSummary).trim()) {
+    parts.push(`Narrative (interview synthesis):\n${String(vp.narrativeSummary).trim()}`);
+  }
+  if (vp.groupName) parts.push(`Calls themselves: ${vp.groupName}`);
+  if (vp.memberCountEstimate != null && vp.memberCountEstimate !== '') {
+    parts.push(`Size estimate: ${vp.memberCountEstimate}`);
+  }
+  if (vp.interests && vp.interests.length) parts.push(`Interest tags: ${vp.interests.join(', ')}`);
+  if (vp.activitiesTheyEnjoy) parts.push(`What they do together: ${vp.activitiesTheyEnjoy}`);
+  if (vp.lookingForInOthers) parts.push(`Want in other groups: ${vp.lookingForInOthers}`);
+  if (vp.vibeNotes) parts.push(`Vibe: ${vp.vibeNotes}`);
+  if (vp.extras) parts.push(`Extra color: ${vp.extras}`);
+  return parts.join('\n');
+}
+
+function interestTagOverlapScore(group1, group2) {
+  const a = (group1.vibeProfile?.interests || []).map(s => String(s).toLowerCase().trim()).filter(Boolean);
+  const b = (group2.vibeProfile?.interests || []).map(s => String(s).toLowerCase().trim()).filter(Boolean);
+  if (a.length === 0 || b.length === 0) return null;
+  const setB = new Set(b);
+  let inter = 0;
+  for (const x of a) {
+    if (setB.has(x)) inter++;
+  }
+  const union = new Set([...a, ...b]).size;
+  return union ? inter / union : 0;
+}
+
 /**
  * Helper to get answer value (handles both old and new format)
  */
 function getAnswer(group, questionNumber) {
+  const vp = group && group.vibeProfile;
+  if (vp && typeof vp === 'object') {
+    if (questionNumber === 1) {
+      const n = group.groupName || vp.groupName;
+      if (n) return n;
+    }
+    if (questionNumber === 2 && vp.memberCountEstimate != null && vp.memberCountEstimate !== '') {
+      return String(vp.memberCountEstimate);
+    }
+    if (questionNumber === 3 && vp.activitiesTheyEnjoy) return vp.activitiesTheyEnjoy;
+    if (questionNumber === 4 && vp.extras) return vp.extras;
+    if (questionNumber === 5 && vp.interests && vp.interests.length) {
+      return vp.interests.join(', ');
+    }
+    if (questionNumber === 7 && vp.vibeNotes) return vp.vibeNotes;
+    if (questionNumber === 10 && vp.lookingForInOthers) return vp.lookingForInOthers;
+  }
+
   const qKey = `q${questionNumber}`;
   const newKey = `question${questionNumber}`;
   
@@ -222,6 +273,13 @@ function calculateQuantitativeScore(group1, group2) {
     totalWeight += 0.1;
   }
 
+  // Factor 5: Interest tag overlap from interview v2 (up to 15%)
+  const tagOverlap = interestTagOverlapScore(group1, group2);
+  if (tagOverlap != null) {
+    score += tagOverlap * 0.15;
+    totalWeight += 0.15;
+  }
+
   // Normalize by total weight (handles missing data)
   return totalWeight > 0 ? score / totalWeight : 0.5;
 }
@@ -282,6 +340,7 @@ Group 1:
 - Emoji: ${getAnswer(group1, 8) || 'N/A'}
 - Roman Empire: ${getAnswer(group1, 9) || 'N/A'}
 - Side Quest: ${getAnswer(group1, 10) || 'N/A'}
+- Interview notes (vibeProfile): ${getVibeNarrative(group1) || 'N/A'}
 
 Group 2:
 - Name: ${getGroupDisplayName(group2)}
@@ -293,7 +352,8 @@ Group 2:
 - Origin Story: ${getAnswer(group2, 7) || 'N/A'}
 - Emoji: ${getAnswer(group2, 8) || 'N/A'}
 - Roman Empire: ${getAnswer(group2, 9) || 'N/A'}
-- Side Quest: ${getAnswer(group2, 10) || 'N/A'}${miniAppSection}
+- Side Quest: ${getAnswer(group2, 10) || 'N/A'}
+- Interview notes (vibeProfile): ${getVibeNarrative(group2) || 'N/A'}${miniAppSection}
 
 SCORING GUIDELINES:
 - Groups with same/similar sizes (difference ≤ 1): Start at 70-100 base
