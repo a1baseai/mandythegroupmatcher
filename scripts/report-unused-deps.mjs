@@ -59,7 +59,7 @@ for (const file of files) {
     for (const field of depFields) {
       for (const name of Object.keys(pkg[field] || {})) {
         const imp = packageImportName(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const used = new RegExp(`(?:from\\s+['"]${imp}(?:/|['"])|import\\s*\\(['"]${imp}(?:/|['"])|require\\s*\\(['"]${imp}(?:/|['"])|['"]${imp}/)`).test(text);
+        const used = new RegExp(`(?:from\\s+['"]${imp}(?:/|['"])|import\\s*\\(['"]${imp}(?:/|['"])|require\\s*\\(['"]${imp}(?:/|['"])|import\\s+['"]${imp}(?:/|['"])|['"]${imp}/)`).test(text);
         if (!used) findings.push(`${rel(file)} ${field}.${name} not found in static JS/TS imports`);
       }
     }
