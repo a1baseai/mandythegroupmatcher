@@ -232,8 +232,11 @@ function checkPyproject(file) {
       inProjectDeps = false;
       inRelevantArray = false;
     }
-    if (/^dependencies\s*=\s*\[/.test(trimmed)) inProjectDeps = true;
-    if ((inOptionalDeps || inBuildSystem) && /^[A-Za-z0-9_.-]+\s*=\s*\[/.test(trimmed)) inRelevantArray = true;
+    const startsProjectDeps = /^dependencies\s*=\s*\[/.test(trimmed);
+    const startsRelevantArray = (inOptionalDeps || inBuildSystem) && /^[A-Za-z0-9_.-]+\s*=\s*\[/.test(trimmed);
+    if (startsProjectDeps) inProjectDeps = true;
+    if (startsRelevantArray) inRelevantArray = true;
+    const endArrayAfterLine = (startsProjectDeps || startsRelevantArray) && trimmed.includes(']');
     if ((inProjectDeps || inRelevantArray) && trimmed === ']') {
       inProjectDeps = false;
       inRelevantArray = false;
@@ -241,16 +244,20 @@ function checkPyproject(file) {
     if (inProjectDeps || inRelevantArray || (inBuildSystem && /^requires\s*=/.test(trimmed))) {
       const quoted = [...trimmed.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
       for (const dep of quoted) {
-        if (!/^[A-Za-z0-9_.-]+(?:\[[^\]]+\])?(?:==|[<>=!~^*])/.test(dep)) continue;
-      const name = dep?.match(/^([A-Za-z0-9_.-]+)/)?.[1]?.toLowerCase();
-      if (dep && !localSources.has(name) && !/^[A-Za-z0-9_.-]+(?:\[[^\]]+\])?==[^<>=!~^*]+$/.test(dep)) {
-        failures.push(`${rel(file)}:${idx + 1} dependency must use == exact pin, found ${dep}`);
-      }
+        const name = dep?.match(/^([A-Za-z0-9_.-]+)/)?.[1]?.toLowerCase();
+        if (!name) continue;
+        if (!localSources.has(name) && !/^[A-Za-z0-9_.-]+(?:\[[^\]]+\])?==[^<>=!~^*]+$/.test(dep)) {
+          failures.push(`${rel(file)}:${idx + 1} dependency must use == exact pin, found ${dep}`);
+        }
         const version = dep.match(/==([^<>=!~^*]+)/)?.[1];
         if (version && !localSources.has(name)) {
           addPackage('pypi', name, version, file);
           if (!inBuildSystem) addPythonManifestPin(file, name, version);
         }
+      }
+      if (endArrayAfterLine) {
+        inProjectDeps = false;
+        inRelevantArray = false;
       }
     }
     if (inPoetryDeps) {
