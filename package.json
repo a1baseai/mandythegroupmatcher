@@ -28,15 +28,15 @@
   "author": "AI Agent Contributors",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.67.0",
-    "@dotenvx/dotenvx": "^1.61.6",
-    "@google/generative-ai": "^0.24.1",
+    "@anthropic-ai/sdk": "0.67.0",
+    "@dotenvx/dotenvx": "1.65.0",
+    "@google/generative-ai": "0.24.1",
     "axios": "1.15.2",
-    "body-parser": "^1.20.2",
-    "cors": "^2.8.6",
-    "express": "^4.18.2"
+    "body-parser": "1.20.4",
+    "cors": "2.8.6",
+    "express": "4.22.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "3.1.14"
   }
 }
