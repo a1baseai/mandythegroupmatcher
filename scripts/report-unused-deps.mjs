@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const root = process.cwd();
+const root = fs.realpathSync(process.cwd());
 const skipDirs = new Set(['.git', 'node_modules', '.next', '.venv', 'dist', 'build', 'coverage', '.turbo']);
 const sourceExts = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.rb']);
 const depFields = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
@@ -11,19 +11,29 @@ function rel(file) {
   return path.relative(root, file) || '.';
 }
 
+function assertInsideRoot(file) {
+  const resolved = fs.realpathSync(file);
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Refusing to read outside repository: ${file}`);
+  }
+  return resolved;
+}
+
 function walk(dir, out = []) {
-  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+  const safeDir = assertInsideRoot(dir);
+  for (const ent of fs.readdirSync(safeDir, { withFileTypes: true })) {
     if (ent.isDirectory()) {
-      if (!skipDirs.has(ent.name)) walk(path.join(dir, ent.name), out);
+      if (!skipDirs.has(ent.name)) walk(path.join(safeDir, ent.name), out);
     } else {
-      out.push(path.join(dir, ent.name));
+      out.push(path.join(safeDir, ent.name));
     }
   }
   return out;
 }
 
 function read(file) {
-  return fs.readFileSync(file, 'utf8');
+  return fs.readFileSync(assertInsideRoot(file), 'utf8');
 }
 
 function packageImportName(name) {
@@ -71,7 +81,11 @@ for (const file of files) {
     if (base === 'pyproject.toml') {
       let inProjectDeps = false;
       let inPoetryDeps = false;
-      for (const line of read(file).split('\n')) {
+      const content = read(file);
+      for (const inline of content.matchAll(/dependencies\s*=\s*\[([^\]]*)\]/gs)) {
+        for (const dep of inline[1].matchAll(/"([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==/g)) deps.push(dep[1]);
+      }
+      for (const line of content.split('\n')) {
         const trimmed = line.trim();
         if (/^\[.*\]/.test(trimmed)) {
           inPoetryDeps = trimmed === '[tool.poetry.dependencies]';
@@ -84,13 +98,13 @@ for (const file of files) {
           if (dep) deps.push(dep[1]);
         }
         if (inPoetryDeps) {
-          const dep = trimmed.match(/^([A-Za-z0-9_.-]+)\s*=\s*"\d/);
+          const dep = trimmed.match(/^([A-Za-z0-9_.-]+)\s*=\s*(?:"\d|\{[^}]*version\s*=\s*"\d)/);
           if (dep && dep[1] !== 'python') deps.push(dep[1]);
         }
       }
     } else {
       for (const line of read(file).split('\n')) {
-        const m = line.match(/^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==/);
+        const m = line.trim().match(/^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?\s*==/);
         if (m) deps.push(m[1]);
       }
     }

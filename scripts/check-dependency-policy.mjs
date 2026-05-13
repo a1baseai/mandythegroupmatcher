@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const root = process.cwd();
+const root = fs.realpathSync(process.cwd());
 const minAgeDaysRaw = process.env.DEPENDENCY_MIN_AGE_DAYS || '7';
 const minAgeDays = Number(minAgeDaysRaw);
 if (!Number.isInteger(minAgeDays) || minAgeDays < 0) {
@@ -25,19 +25,33 @@ function rel(file) {
   return path.relative(root, file) || '.';
 }
 
+function assertInsideRoot(file) {
+  const resolved = fs.realpathSync(file);
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Refusing to read outside repository: ${file}`);
+  }
+  return resolved;
+}
+
 function walk(dir, out = []) {
-  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+  const safeDir = assertInsideRoot(dir);
+  for (const ent of fs.readdirSync(safeDir, { withFileTypes: true })) {
     if (ent.isDirectory()) {
-      if (!skipDirs.has(ent.name)) walk(path.join(dir, ent.name), out);
+      if (!skipDirs.has(ent.name)) walk(path.join(safeDir, ent.name), out);
     } else {
-      out.push(path.join(dir, ent.name));
+      out.push(path.join(safeDir, ent.name));
     }
   }
   return out;
 }
 
+function read(file) {
+  return fs.readFileSync(assertInsideRoot(file), 'utf8');
+}
+
 function readJson(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  return JSON.parse(read(file));
 }
 
 function isPinnedVersion(spec) {
@@ -77,7 +91,7 @@ function checkPackageJson(file) {
 
   for (const field of depFields) {
     for (const [name, spec] of Object.entries(pkg[field] || {})) {
-      hasDirectDeps = true;
+      if (field !== 'peerDependencies') hasDirectDeps = true;
       if (!isPinnedVersion(spec)) {
         failures.push(`${rel(file)} ${field}.${name} must be an exact version, found ${JSON.stringify(spec)}`);
       }
@@ -110,6 +124,11 @@ function checkPackageLock(file, pkg) {
   const rootPkg = lock.packages?.[''];
   if (rootPkg) {
     for (const field of depFields) {
+      for (const name of Object.keys(pkg?.[field] || {})) {
+        if (!rootPkg[field]?.[name]) {
+          failures.push(`${rel(file)} root ${field}.${name} is missing from package-lock.json`);
+        }
+      }
       for (const [name, spec] of Object.entries(rootPkg[field] || {})) {
         if (!isPinnedVersion(spec)) {
           failures.push(`${rel(file)} root ${field}.${name} must be exact, found ${JSON.stringify(spec)}`);
@@ -124,50 +143,61 @@ function checkPackageLock(file, pkg) {
 
   for (const [key, value] of Object.entries(lock.packages || {})) {
     if (!key || !value?.version) continue;
-    addPackage('npm', packageNameFromNodeModules(key) || value.name, value.version, file);
+    addPackage('npm', value.name || packageNameFromNodeModules(key), value.version, file);
   }
 }
 
 function checkPnpmLock(file, pkg) {
-  const text = fs.readFileSync(file, 'utf8');
+  const text = read(file);
+  const seenDirect = new Map();
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i += 1) {
     const field = lines[i].match(/^(\s*)(dependencies|devDependencies|optionalDependencies):\s*$/);
     if (!field) continue;
     const sectionIndent = field[1].length;
     const sectionField = field[2];
-    i += 1;
-    while (i < lines.length) {
-      const nameMatch = lines[i].match(/^(\s*)(?:'([^']+)'|([^:\n]+)):\s*$/);
-      if (!nameMatch || nameMatch[1].length <= sectionIndent) {
+    for (i += 1; i < lines.length; i += 1) {
+      if (/^\S/.test(lines[i]) && sectionIndent === 0) {
         i -= 1;
         break;
       }
+      const nameMatch = lines[i].match(/^(\s*)(?:'([^']+)'|([^:\n]+)):\s*$/);
+      if (nameMatch && nameMatch[1].length <= sectionIndent) {
+        i -= 1;
+        break;
+      }
+      if (!nameMatch) continue;
       const nameIndent = nameMatch[1].length;
       const name = nameMatch[2] || nameMatch[3].trim();
       let spec = null;
       let version = null;
-      i += 1;
-      while (i < lines.length) {
-        const detail = lines[i].match(/^(\s*)(specifier|version):\s*(.+)\s*$/);
-        if (!detail || detail[1].length <= nameIndent) {
-          i -= 1;
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const detail = lines[j].match(/^(\s*)(specifier|version):\s*(.+)\s*$/);
+        if (detail && detail[1].length > nameIndent) {
+          if (detail[2] === 'specifier') spec = detail[3].trim();
+          if (detail[2] === 'version') version = detail[3].trim().split('(')[0];
+          continue;
+        }
+        if (/^\s*\S/.test(lines[j])) {
           break;
         }
-        if (detail[2] === 'specifier') spec = detail[3].trim();
-        if (detail[2] === 'version') version = detail[3].trim().split('(')[0];
-        i += 1;
       }
       if (!spec || !version) continue;
+      if (!seenDirect.has(sectionField)) seenDirect.set(sectionField, new Set());
+      seenDirect.get(sectionField).add(name);
       if (!isPinnedVersion(spec)) failures.push(`${rel(file)} ${sectionField}.${name} specifier must be exact, found ${spec}`);
       const manifestSpec = pkg?.[sectionField]?.[name];
       if (manifestSpec && manifestSpec !== spec) failures.push(`${rel(file)} ${sectionField}.${name} (${spec}) does not match package.json (${manifestSpec})`);
-      if (manifestSpec && manifestSpec !== version) failures.push(`${rel(file)} ${sectionField}.${name} specifier (${spec}) does not match resolved version (${version})`);
+    }
+  }
+  for (const field of depFields) {
+    for (const name of Object.keys(pkg?.[field] || {})) {
+      if (!seenDirect.get(field)?.has(name)) failures.push(`${rel(file)} ${field}.${name} is missing from pnpm-lock.yaml`);
     }
   }
 
   for (const line of text.split('\n')) {
-    const m = line.match(/^  \/(.+):$/);
+    const m = line.match(/^ {2}(?:['"]?\/?([^'":]+(?:\/[^'":]+)?@[^'":]+)['"]?):\s*$/);
     if (!m) continue;
     const key = m[1].split('(')[0];
     const at = key.lastIndexOf('@');
@@ -177,7 +207,7 @@ function checkPnpmLock(file, pkg) {
 }
 
 function checkPyproject(file) {
-  const text = fs.readFileSync(file, 'utf8');
+  const text = read(file);
   const localSources = new Set();
   let inUvSources = false;
   for (const line of text.split('\n')) {
@@ -219,7 +249,7 @@ function checkPyproject(file) {
         const version = dep.match(/==([^<>=!~^*]+)/)?.[1];
         if (version && !localSources.has(name)) {
           addPackage('pypi', name, version, file);
-          addPythonManifestPin(file, name, version);
+          if (!inBuildSystem) addPythonManifestPin(file, name, version);
         }
       }
     }
@@ -237,7 +267,7 @@ function checkPyproject(file) {
 }
 
 function parseUvLock(file) {
-  const text = fs.readFileSync(file, 'utf8');
+  const text = read(file);
   const locked = new Map();
   for (const block of text.split('\n[[package]]\n')) {
     const name = block.match(/name = "([^"]+)"/)?.[1];
@@ -252,7 +282,7 @@ function parseUvLock(file) {
 }
 
 function parsePoetryLock(file) {
-  const text = fs.readFileSync(file, 'utf8');
+  const text = read(file);
   const locked = new Map();
   for (const block of text.split('\n[[package]]\n')) {
     const name = block.match(/name = "([^"]+)"/)?.[1];
@@ -268,14 +298,16 @@ function comparePythonLock(file, locked) {
   if (!pins) return;
   for (const [name, version] of pins) {
     const resolved = locked.get(name);
-    if (resolved && resolved !== version) {
+    if (!locked.has(name)) {
+      failures.push(`${rel(file)} ${name} is pinned in the manifest but missing from the lockfile`);
+    } else if (resolved !== version) {
       failures.push(`${rel(file)} ${name} resolved version (${resolved}) does not match manifest pin (${version})`);
     }
   }
 }
 
 function checkRequirements(file) {
-  fs.readFileSync(file, 'utf8').split('\n').forEach((line, idx) => {
+  read(file).split('\n').forEach((line, idx) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return;
     const m = trimmed.match(/^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==([^<>=!~^*]+)$/);
@@ -288,14 +320,14 @@ function checkRequirements(file) {
 }
 
 function parseGemfileLock(file) {
-  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+  for (const line of read(file).split('\n')) {
     const m = line.match(/^    ([A-Za-z0-9_.-]+) \(([^)]+)\)/);
     if (m) addPackage('rubygems', m[1], m[2], file);
   }
 }
 
 function checkGemfile(file) {
-  fs.readFileSync(file, 'utf8').split('\n').forEach((line, idx) => {
+  read(file).split('\n').forEach((line, idx) => {
     const m = line.trim().match(/^gem\s+["']([^"']+)["'](?:,\s*["']([^"']+)["'])?/);
     if (m && !isExactNonRangeSpec(m[2] || '')) {
       failures.push(`${rel(file)}:${idx + 1} gem ${m[1]} must be exact, found ${m[2] || 'unconstrained'}`);
@@ -306,7 +338,12 @@ function checkGemfile(file) {
 async function fetchJson(url) {
   if (metadataCache.has(url)) return metadataCache.get(url);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number(process.env.DEPENDENCY_POLICY_FETCH_TIMEOUT_MS || '15000'));
+  const fetchTimeoutRaw = process.env.DEPENDENCY_POLICY_FETCH_TIMEOUT_MS || '15000';
+  const fetchTimeoutMs = Number(fetchTimeoutRaw);
+  if (!Number.isInteger(fetchTimeoutMs) || fetchTimeoutMs <= 0) {
+    throw new Error(`DEPENDENCY_POLICY_FETCH_TIMEOUT_MS must be a positive integer, found ${JSON.stringify(fetchTimeoutRaw)}`);
+  }
+  const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs);
   try {
     const res = await fetch(url, {
       headers: { accept: 'application/json', 'user-agent': 'a1base-dependency-policy' },
